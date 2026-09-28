@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Macro Tracker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23f4f4f0'/><circle cx='32' cy='32' r='20' fill='none' stroke='%23ddddd6' stroke-width='6'/><circle cx='32' cy='32' r='20' fill='none' stroke='%2300895a' stroke-width='6' stroke-linecap='round' stroke-dasharray='88 126' transform='rotate(-90 32 32)'/><circle cx='32' cy='32' r='4' fill='%2300895a'/></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data.js"></script>
+<script>
+// ─── One-time migration: seed Rice Cakes ingredient ──────────────────────────
+(function migrateRiceCakes() {
+  const VERSION_KEY = 'migration_rice_cakes_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const RICE_CAKES = {
+    id: 'rice_cakes', name: 'Rice Cakes', portion: '2 pcs (19 g)',
+    cal: 70, p: 2, c: 15, f: 0, s: 0, fat: 1
+  };
+
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    foodDB = foodDB.filter(f => f.id !== 'rice_cakes');
+    foodDB.push(RICE_CAKES);
+    localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Migration: rice cakes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: seed Chicken Wrap recipe ────────────────────────────
+(function migrateChickenWrap() {
+  const VERSION_KEY = 'migration_chicken_wrap_v3';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const li = (foodId, foodName, foodPortion, enteredQty, unit, mult) => ({
+    id: foodId + '_' + Math.random().toString(36).slice(2, 8),
+    foodId, foodName, foodPortion, enteredQty, unit, mult
+  });
+
+  const CHICKEN_WRAP = {
+    id: 'chicken_wrap',
+    name: 'Chicken Wrap',
+    portion: '1 wrap',
+    lineItems: [
+      // 85 g raw chicken breast — base portion 250 g
+      li('chicken_breast',   'Chicken Breast (raw)', '250 g',    85,  'g',    85 / 250),
+      li('protein_tortilla', 'Protein Tortilla',     '1 pc',     1,   'pc',   1),
+      li('provolone',        'Provolone Cheese',     '1 slice',  1,   'slice', 1),
+      li('red_onions',       'Red Onions',           '20 g',     20,  'g',    1),
+      // Cream cheese base portion is 2 tbsp, so 1 tbsp = 0.5×
+      li('cream_cheese',     'Cream Cheese',         '2 tbsp',   1,   'tbsp', 0.5),
+    ],
+    cal: 356.6, p: 46.0, c: 23, f: 5, s: 2.5, fat: 12.45,
+  };
+
+  const CHICKEN_VEGGIE_WRAP = {
+    id: 'chicken_veggie_wrap',
+    name: 'Chicken Veggie Wrap',
+    portion: '1 wrap',
+    lineItems: [
+      li('chicken_breast',   'Chicken Breast (raw)', '250 g',   85,  'g',    85 / 250),
+      li('protein_tortilla', 'Protein Tortilla',     '1 pc',    1,   'pc',   1),
+      // Bell Peppers base portion 75 g — labelled separately for clarity
+      li('bell_peppers',     'Red Peppers',          '75 g',    50,  'g',    50 / 75),
+      li('bell_peppers',     'Green Peppers',        '75 g',    50,  'g',    50 / 75),
+      li('red_onions',       'Red Onions',           '20 g',    20,  'g',    1),
+      // Greek Yogurt 0% base portion 175 g
+      li('greek_yogurt_0',   'Greek Yogurt 0%',      '175 g',   30,  'g',    30 / 175),
+    ],
+    cal: 304.4, p: 44.1, c: 28.9, f: 9, s: 5.6, fat: 5.2,
+  };
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    // Replace if exists, otherwise append (idempotent)
+    recipes = recipes.filter(r => r.id !== 'chicken_wrap' && r.id !== 'chicken_veggie_wrap');
+    recipes.push(CHICKEN_WRAP, CHICKEN_VEGGIE_WRAP);
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration: chicken wrap step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: seed lunch rotation into localStorage ────────────────
+(function migrateLunchRotation() {
+  const VERSION_KEY = 'migration_lunch_rotation_v2';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const NEW_INGREDIENT_IDS = [
+    'chicken_thighs', 'shrimp', 'salmon', 'sweet_potatoes',
+    'chicken_broth', 'soy_sauce', 'honey', 'garlic', 'butter',
+    'spinach', 'cherry_tomatoes', 'lemon_juice'
+  ];
+
+  const li = (foodId, foodName, foodPortion, enteredQty, unit, mult) => ({
+    id: foodId + '_' + Math.random().toString(36).slice(2, 8),
+    foodId, foodName, foodPortion, enteredQty, unit, mult
+  });
+
+  // Helpers for the standard line items (ingredient ids match FOOD_DB)
+  const Lcb240 = () => li('chicken_breast', 'Chicken Breast (raw)', '250 g', 240, 'g', 0.96);
+  const Lct210 = () => li('chicken_thighs', 'Chicken Thighs (raw)', '100 g', 210, 'g', 2.1);
+  const Lsh235 = () => li('shrimp',         'Shrimp (raw)',         '100 g', 235, 'g', 2.35);
+  const Lsa150 = () => li('salmon',         'Fresh Salmon (raw)',   '100 g', 150, 'g', 1.5);
+  const Lr95   = () => li('rice',           'Basmati White Rice (raw)', '45 g', 95, 'g', 2.111);
+  const Lp100  = () => li('pasta',          'Pasta',                '85 g', 100, 'g', 1.176);
+  const Lpo310 = () => li('potatoes',       'Potatoes',             '150 g', 310, 'g', 2.067);
+  const Lsp330 = () => li('sweet_potatoes', 'Sweet Potatoes (raw)', '100 g', 330, 'g', 3.3);
+  const Lbr    = () => li('chicken_broth',  'Chicken Broth',        '240 ml', 240, 'ml', 1);
+  const Lso    = () => li('soy_sauce',      'Soy Sauce',            '1 tbsp', 1, 'tbsp', 1);
+  const Lho    = () => li('honey',          'Honey',                '1 tbsp', 0.333, 'tbsp', 0.333);
+  const Lp90   = () => li('pasta',          'Pasta',                '85 g', 90, 'g', 90 / 85);
+  const Lga2   = () => li('garlic',         'Garlic',               '1 clove', 2, 'clove', 2);
+  const Lspin  = () => li('spinach',         'Spinach (fresh)',     '100 g', 60, 'g', 0.6);
+  const Lcht   = () => li('cherry_tomatoes', 'Cherry Tomatoes',     '100 g', 80, 'g', 0.8);
+  const Llj    = () => li('lemon_juice',     'Lemon Juice',         '100 g', 5, 'g', 0.05);
+  const Lps    = () => li('pan_spray',       'Pan Spray',           '1 spray', 1, 'spray', 1);
+
+  const NEW_RECIPES = [
+    { id: 'lunch_w1_chicken_rice',  name: 'Lunch W1 — Chicken & Rice (broth)',          portion: '1 portion', lineItems: [Lcb240(), Lr95(),  Lbr()],
+      cal: 631.2, p: 82.2, c: 77,    f: 0,   s: 1,     fat: 5.3 },
+    { id: 'lunch_w2_shrimp_pasta',  name: 'Lunch W2 — Shrimp & Pasta',                  portion: '1 portion', lineItems: [Lsh235(), Lp100()],
+      cal: 540.9, p: 58.8, c: 71.1,  f: 3.5, s: 1.2,   fat: 1.9 },
+    { id: 'lunch_w3_salmon_sweet',  name: 'Lunch W3 — Salmon & Sweet Potato',           portion: '1 portion', lineItems: [Lsa150(), Lsp330(), Lso(), Lho()],
+      cal: 619,   p: 36.6, c: 71.1,  f: 9.9, s: 18,    fat: 19.8 },
+    { id: 'lunch_w4_thighs_potato', name: 'Lunch W4 — Chicken Thighs & Potato',         portion: '1 portion', lineItems: [Lct210(), Lpo310()],
+      cal: 527.6, p: 41.9, c: 51.7,  f: 4.1, s: 0,     fat: 16.8 },
+    { id: 'lunch_w5_chicken_sweet', name: 'Lunch W5 — Chicken & Sweet Potato',          portion: '1 portion', lineItems: [Lcb240(), Lsp330()],
+      cal: 562.2, p: 80.2, c: 66,    f: 9.9, s: 13.9,  fat: 5.1 },
+    { id: 'lunch_w6_shrimp_rice',   name: 'Lunch W6 — Shrimp & Rice (broth)',           portion: '1 portion', lineItems: [Lsh235(), Lr95(), Lbr()],
+      cal: 552.5, p: 54.3, c: 77.5,  f: 0,   s: 1,     fat: 1.2 },
+    { id: 'lunch_w7_salmon_pasta',  name: 'Lunch W7 — Salmon & Pasta',                  portion: '1 portion', lineItems: [Lsa150(), Lp90(), Lps(), Lga2(), Lspin(), Lcht(), Llj()],
+      cal: 656.4, p: 43.5, c: 71.2,  f: 5.7, s: 3.5,   fat: 21 },
+    { id: 'lunch_w8_thighs_sweet',  name: 'Lunch W8 — Chicken Thighs & Sweet Potato',   portion: '1 portion', lineItems: [Lct210(), Lsp330()],
+      cal: 584.1, p: 41,   c: 66,    f: 9.9, s: 13.9,  fat: 17.1 },
+  ];
+
+  // 1. Ensure missing ingredients are in macrofooddb_v1
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    let changed = false;
+    for (const id of NEW_INGREDIENT_IDS) {
+      if (!foodDB.find(f => f.id === id)) {
+        const seed = (typeof FOOD_DB !== 'undefined') ? FOOD_DB.find(f => f.id === id) : null;
+        if (seed) { foodDB.push(seed); changed = true; }
+      }
+    }
+    if (changed || !raw) localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Migration: foodDB step failed', e); }
+
+  // 2. Replace any existing lunch_w* entries with fresh, properly-linked ones
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    // Drop any old lunch_w* recipes (broken NaN versions) before re-seeding
+    recipes = recipes.filter(r => !/^lunch_w\d+_/.test(r.id));
+    for (const r of NEW_RECIPES) recipes.push(r);
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: update Lunch W7 — Salmon & Pasta ingredients ──────────
+(function migrateW7SalmonPasta() {
+  const VERSION_KEY = 'migration_w7_salmon_pasta_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const NEW_FOODS = [
+    { id: 'spinach',         name: 'Spinach (fresh)', portion: '100 g', cal: 23, p: 2.9, c: 3.6, f: 2.2, s: 0.4, fat: 0.4 },
+    { id: 'cherry_tomatoes', name: 'Cherry Tomatoes', portion: '100 g', cal: 18, p: 0.9, c: 3.9, f: 1.2, s: 2.6, fat: 0.2 },
+    { id: 'lemon_juice',     name: 'Lemon Juice',     portion: '100 g', cal: 22, p: 0.4, c: 6.9, f: 0.3, s: 2.5, fat: 0.2 },
+  ];
+
+  const li = (foodId, foodName, foodPortion, enteredQty, unit, mult) => ({
+    id: foodId + '_' + Math.random().toString(36).slice(2, 8),
+    foodId, foodName, foodPortion, enteredQty, unit, mult
+  });
+
+  // Salmon 150g, Pasta 90g, Pan Spray (0-contribution line), Garlic 2 cloves,
+  // Spinach 60g, Cherry Tomatoes 80g, Lemon Juice 1 tsp (~5g). Soy sauce + honey removed.
+  const W7_LINE_ITEMS = [
+    li('salmon',          'Fresh Salmon (raw)', '100 g',   150, 'g',     1.5),
+    li('pasta',           'Pasta',              '85 g',    90,  'g',     90 / 85),
+    li('pan_spray',       'Pan Spray',          '1 spray', 1,   'spray', 1),
+    li('garlic',          'Garlic',             '1 clove', 2,   'clove', 2),
+    li('spinach',         'Spinach (fresh)',    '100 g',   60,  'g',     0.6),
+    li('cherry_tomatoes', 'Cherry Tomatoes',    '100 g',   80,  'g',     0.8),
+    li('lemon_juice',     'Lemon Juice',        '100 g',   5,   'g',     0.05),
+  ];
+  const W7_TOTALS = { cal: 656.4, p: 43.5, c: 71.2, f: 5.7, s: 3.5, fat: 21 };
+
+  // 1. Add the three new ingredients to the food database (if missing)
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    let changed = false;
+    for (const food of NEW_FOODS) {
+      if (!foodDB.find(f => f.id === food.id)) { foodDB.push(food); changed = true; }
+    }
+    if (changed || !raw) localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Migration W7: foodDB step failed', e); }
+
+  // 2. Replace ingredients + totals on Lunch W7 — Salmon & Pasta
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.map(r => r.id === 'lunch_w7_salmon_pasta'
+      ? { ...r, name: 'Lunch W7 — Salmon & Pasta', portion: '1 portion', lineItems: W7_LINE_ITEMS, ...W7_TOTALS }
+      : r);
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration W7: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: sukhari + lavash (relocation substitutions) ──────────
+(function migrateRelocationSwaps() {
+  const VERSION_KEY = 'migration_relocation_swaps_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  // Sukhari: plain/diet rusk reference. VERIFY against the actual package label.
+  // Fiber is an estimate (~2.5 g/100 g for plain wheat rusk) — not reliably reported.
+  const NEW_FOODS = [
+    { id: 'sukhari', name: 'Sukhari (dried rusks)',   portion: '100 g', cal: 287, p: 11.5, c: 50.8, f: 2.5, s: 0, fat: 5.5 },
+    { id: 'lavash',  name: 'Lavash (thin flatbread)', portion: '100 g', cal: 281, p: 8.7,  c: 60.3, f: 3.1, s: 0, fat: 1.2 },
+  ];
+
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    let changed = false;
+    for (const food of NEW_FOODS) {
+      if (!foodDB.find(f => f.id === food.id)) { foodDB.push(food); changed = true; }
+    }
+    if (changed || !raw) localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Migration relocation: foodDB step failed', e); }
+
+  // Swap the Protein Tortilla line for a 70 g piece of lavash in the three
+  // dinner-rotation wraps, and restate totals (delta per wrap:
+  // +46.7 cal, -6.91 p, +23.21 c, -1.83 fiber, -2 sugar, -2.66 fat).
+  const WRAP_TOTALS = {
+    d4cpgtf:             { cal: 386.5, p: 30.3, c: 46.2, f: 3.2, s: 0.5, fat: 10.1 }, // Salmon Wrap
+    chicken_wrap:        { cal: 403.3, p: 39.1, c: 46.2, f: 3.2, s: 0.5, fat: 9.8  },
+    chicken_veggie_wrap: { cal: 351.1, p: 37.2, c: 52.1, f: 7.2, s: 3.6, fat: 2.5  },
+  };
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.map(r => {
+      if (!WRAP_TOTALS[r.id]) return r;
+      const lineItems = (r.lineItems || []).map(l => l.foodId === 'protein_tortilla'
+        ? { id: 'lavash_' + Math.random().toString(36).slice(2, 8), foodId: 'lavash',
+            foodName: 'Lavash (thin flatbread)', foodPortion: '100 g', enteredQty: 70, unit: 'g', mult: 0.7 }
+        : l);
+      return { ...r, lineItems, ...WRAP_TOTALS[r.id] };
+    });
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration relocation: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: rebalance salmon + chicken wraps to dinner target ────
+(function migrateWrapRebalance() {
+  const VERSION_KEY = 'migration_wrap_rebalance_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.map(r => {
+      // Salmon Wrap: cream cheese dropped, Wild Pink Salmon 75 g → 105 g
+      if (r.id === 'd4cpgtf') {
+        const lineItems = (r.lineItems || [])
+          .filter(l => l.foodId !== 'cream_cheese')
+          .map(l => l.foodId === '8w14qhk'
+            ? { ...l, enteredQty: 105, mult: 105 / 55 }
+            : l);
+        return { ...r, lineItems, cal: 389.2, p: 35.9, c: 45.2, f: 3.2, s: 0, fat: 8.7 };
+      }
+      // Chicken Wrap: cream cheese 1 tbsp → 0.5 tbsp
+      if (r.id === 'chicken_wrap') {
+        const lineItems = (r.lineItems || []).map(l => l.foodId === 'cream_cheese'
+          ? { ...l, enteredQty: 0.5, mult: 0.25 }
+          : l);
+        return { ...r, lineItems, cal: 388.3, p: 38.4, c: 45.7, f: 3.2, s: 0.25, fat: 8.7 };
+      }
+      return r;
+    });
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration wrap rebalance failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: final salmon wrap + sukhari snack entry ──────────────
+(function migrateWrapFinal() {
+  const VERSION_KEY = 'migration_wrap_final_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  // Sukhari 24 g as a directly selectable snack item (0.24 × the per-100 g row)
+  const SUKHARI_SNACK = {
+    id: 'sukhari_snack', name: 'Sukhari Snack (24 g)', portion: '24 g',
+    cal: 68.9, p: 2.8, c: 12.2, f: 0.6, s: 0, fat: 1.3
+  };
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    if (!foodDB.find(f => f.id === 'sukhari_snack')) {
+      foodDB.push(SUKHARI_SNACK);
+      localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+    }
+  } catch (e) { console.warn('Migration final: foodDB step failed', e); }
+
+  // Salmon Wrap final: cream cheese 0.25 tbsp, Wild Pink Salmon 100 g
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.map(r => {
+      if (r.id !== 'd4cpgtf') return r;
+      let items = (r.lineItems || []).map(l => l.foodId === '8w14qhk'
+        ? { ...l, enteredQty: 100, mult: 100 / 55 }
+        : l.foodId === 'cream_cheese'
+          ? { ...l, enteredQty: 0.25, mult: 0.125 }
+          : l);
+      // Re-add the cream cheese line if the previous pass removed it
+      if (!items.find(l => l.foodId === 'cream_cheese')) {
+        items = [...items, { id: 'cream_cheese_' + Math.random().toString(36).slice(2, 8),
+          foodId: 'cream_cheese', foodName: 'Cream Cheese', foodPortion: '2 tbsp',
+          enteredQty: 0.25, unit: 'tbsp', mult: 0.125 }];
+      }
+      return { ...r, lineItems: items, cal: 391.3, p: 35.1, c: 45.5, f: 3.2, s: 0.1, fat: 9.1 };
+    });
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration final: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: psyllium husk + 5 pm shake ───────────────────────────
+(function migratePsyllium() {
+  const VERSION_KEY = 'migration_psyllium_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  // Reference values for plain psyllium husk powder — VERIFY against package label.
+  const PSYLLIUM = { id: 'psyllium_husk', name: 'Psyllium Husk Powder', portion: '100 g',
+    cal: 300, p: 0, c: 80, f: 80, s: 0, fat: 0 };
+
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    let foodDB = raw ? JSON.parse(raw) : (typeof FOOD_DB !== 'undefined' ? [...FOOD_DB] : []);
+    if (!foodDB.find(f => f.id === 'psyllium_husk')) {
+      foodDB.push(PSYLLIUM);
+      localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+    }
+  } catch (e) { console.warn('Migration psyllium: foodDB step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: Diet Reset / Workout 6.0 full data rebuild ──────────
+// Replaces the ingredient rows + composed meals with the new plan, rebases any
+// existing recipe line items whose ingredient portion basis changed to 100 g,
+// drops the retired 9-combo lunch system and beef mince, and resets goals.
+(function migrateDietReset() {
+  const VERSION_KEY = 'migration_diet_reset_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const UPSERT_IDS = [
+    'boiled_egg', 'banana', 'potatoes', 'rice', 'pasta', 'chicken_breast',
+    'chicken_thighs', 'bell_peppers', 'cucumbers', 'greek_yogurt_dilbah',
+    'non_lepeshka', 'mayonnaise', 'korean_carrot', 'onion', 'tomato_paste',
+    'psyllium_serving', 'creatine'
+  ];
+  const REMOVE_FOOD_IDS = ['ground_beef'];
+  // Ingredients rebased from an odd portion size to a clean 100 g basis.
+  const REBASE = { chicken_breast: '100 g', potatoes: '100 g', rice: '100 g', pasta: '100 g', bell_peppers: '100 g', cucumbers: '100 g' };
+  const NEW_MEAL_IDS = ['meal_breakfast', 'meal_preworkout', 'meal_dinner_wrap', 'lunch_potato_week', 'lunch_rice_week', 'lunch_pasta_week', 'daily_supplements'];
+
+  let foodDB = [];
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    foodDB = raw ? JSON.parse(raw) : [...FOOD_DB];
+    for (const id of UPSERT_IDS) {
+      const seed = FOOD_DB.find(f => f.id === id);
+      if (!seed) continue;
+      const i = foodDB.findIndex(f => f.id === id);
+      if (i === -1) foodDB.push({ ...seed }); else foodDB[i] = { ...seed };
+    }
+    foodDB = foodDB.filter(f => !REMOVE_FOOD_IDS.includes(f.id));
+    localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Diet reset: foodDB step failed', e); }
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : [...RECIPES];
+    // Retire the old 9-combo lunch rotation
+    recipes = recipes.filter(r => !/^lunch_w\d+_/.test(r.id) && !NEW_MEAL_IDS.includes(r.id));
+    // Rebase line items so gram amounts stay the same against the new bases
+    recipes = recipes.map(r => {
+      if (!Array.isArray(r.lineItems)) return r;
+      const lineItems = r.lineItems.map(l => {
+        if (!REBASE[l.foodId]) return l;
+        const portion = REBASE[l.foodId];
+        const base = parseFloat(portion) || 1;
+        const qty = l.enteredQty != null ? l.enteredQty : base;
+        return { ...l, foodPortion: portion, enteredQty: qty, unit: 'g', mult: qty / base };
+      });
+      return { ...r, lineItems, ...sumLineItems(lineItems, foodDB) };
+    });
+    for (const m of RECIPES.filter(r => NEW_MEAL_IDS.includes(r.id))) {
+      recipes.push({ ...m, lineItems: m.lineItems.map(l => ({ ...l, id: l.foodId + '_' + Math.random().toString(36).slice(2, 8) })) });
+    }
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Diet reset: recipes step failed', e); }
+
+  try { localStorage.setItem('macrogoals_v1', JSON.stringify(DEFAULT_GOALS)); }
+  catch (e) { console.warn('Diet reset: goals step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: trim W1 lunch + wraps, provolone → mozzarella ────────
+(function migrateTrimAndSwap() {
+  const VERSION_KEY = 'migration_trim_swap_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.map(r => {
+      // W1 lunch: chicken 240 → 180 g, rice 95 → 80 g
+      if (r.id === 'lunch_w1_chicken_rice') {
+        const lineItems = (r.lineItems || []).map(l =>
+          l.foodId === 'chicken_breast' ? { ...l, enteredQty: 180, mult: 180 / 250 } :
+          l.foodId === 'rice'           ? { ...l, enteredQty: 80,  mult: 80 / 45 }   : l);
+        return { ...r, lineItems, cal: 508.2, p: 62.5, c: 65, f: 0, s: 1, fat: 4.1 };
+      }
+      // Both wraps: lavash 70 → 60 g. Chicken Wrap also swaps provolone → mozzarella 28 g.
+      if (r.id === 'chicken_wrap' || r.id === 'chicken_veggie_wrap') {
+        const lineItems = (r.lineItems || []).map(l =>
+          l.foodId === 'lavash'    ? { ...l, enteredQty: 60, mult: 0.6 } :
+          l.foodId === 'provolone' ? { ...l, foodId: 'mozzarella', foodName: 'Mozzarella Cheese',
+                                       foodPortion: '64 g', enteredQty: 28, unit: 'g', mult: 28 / 64 } : l);
+        const totals = r.id === 'chicken_wrap'
+          ? { cal: 365.1, p: 40,   c: 39.6, f: 2.9, s: 0.25, fat: 9.2 }
+          : { cal: 323,   p: 36.3, c: 46.1, f: 6.9, s: 3.6,  fat: 2.4 };
+        return { ...r, lineItems, ...totals };
+      }
+      return r;
+    });
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Migration trim/swap failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: thigh bone-in correction + trout ingredient & meals ──
+// Thigh macros were boneless/skinless; corrected to bone-in raw-as-purchased.
+// Adds trout, three trout lunch rotations and the trout salad dinner as extra
+// options — nothing is removed.
+(function migrateThighTrout() {
+  const VERSION_KEY = 'migration_thigh_trout_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const UPSERT_IDS = ['chicken_thighs', 'trout'];
+  const NEW_MEAL_IDS = [
+    'lunch_potato_week', 'lunch_rice_week', 'lunch_pasta_week',
+    'lunch_potato_week_trout', 'lunch_rice_week_trout', 'lunch_pasta_week_trout',
+    'meal_dinner_trout_salad'
+  ];
+
+  let foodDB = [];
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    foodDB = raw ? JSON.parse(raw) : [...FOOD_DB];
+    for (const id of UPSERT_IDS) {
+      const seed = FOOD_DB.find(f => f.id === id);
+      if (!seed) continue;
+      const i = foodDB.findIndex(f => f.id === id);
+      if (i === -1) foodDB.push({ ...seed }); else foodDB[i] = { ...seed };
+    }
+    localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Thigh/trout: foodDB step failed', e); }
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.filter(r => !NEW_MEAL_IDS.includes(r.id));
+    for (const m of RECIPES.filter(r => NEW_MEAL_IDS.includes(r.id))) {
+      recipes.push({ ...m, lineItems: m.lineItems.map(l => ({ ...l, id: l.foodId + '_' + Math.random().toString(36).slice(2, 8) })) });
+    }
+    // Any other recipe still using thigh re-totals against the corrected value.
+    recipes = recipes.map(r => (Array.isArray(r.lineItems) && r.lineItems.some(l => l.foodId === 'chicken_thighs') && !NEW_MEAL_IDS.includes(r.id))
+      ? { ...r, ...sumLineItems(r.lineItems, foodDB) } : r);
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Thigh/trout: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: mushroom chicken mozzarella spinach wrap ────────────
+// Adds mushrooms + sunflower oil and a second dinner wrap option. Nothing is
+// removed; the existing chicken/egg dinner wrap is untouched.
+(function migrateMushroomWrap() {
+  const VERSION_KEY = 'migration_mushroom_wrap_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+
+  const UPSERT_IDS = ['mushrooms', 'sunflower_oil'];
+  const NEW_MEAL_IDS = ['meal_dinner_mushroom_wrap'];
+
+  let foodDB = [];
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    foodDB = raw ? JSON.parse(raw) : [...FOOD_DB];
+    for (const id of UPSERT_IDS) {
+      const seed = FOOD_DB.find(f => f.id === id);
+      if (!seed) continue;
+      const i = foodDB.findIndex(f => f.id === id);
+      if (i === -1) foodDB.push({ ...seed }); else foodDB[i] = { ...seed };
+    }
+    localStorage.setItem('macrofooddb_v1', JSON.stringify(foodDB));
+  } catch (e) { console.warn('Mushroom wrap: foodDB step failed', e); }
+
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    let recipes = raw ? JSON.parse(raw) : (typeof RECIPES !== 'undefined' ? [...RECIPES] : []);
+    recipes = recipes.filter(r => !NEW_MEAL_IDS.includes(r.id));
+    for (const m of RECIPES.filter(r => NEW_MEAL_IDS.includes(r.id))) {
+      recipes.push({ ...m, lineItems: m.lineItems.map(l => ({ ...l, id: l.foodId + '_' + Math.random().toString(36).slice(2, 8) })) });
+    }
+    localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+  } catch (e) { console.warn('Mushroom wrap: recipes step failed', e); }
+
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: add Yasno Solnyshko oats (insert only, never overwrite) ─
+(function migrateYasnoOats() {
+  const VERSION_KEY = 'migration_yasno_oats_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    if (raw) {
+      const db = JSON.parse(raw);
+      const seed = FOOD_DB.find(f => f.id === 'yasno_oats_1');
+      if (seed && !db.some(f => f.id === 'yasno_oats_1')) {
+        db.push({ ...seed });
+        localStorage.setItem('macrofooddb_v1', JSON.stringify(db));
+      }
+    }
+  } catch (e) { console.warn('Yasno oats migration failed', e); }
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: Egg Salad Sandwich (insert only, never overwrite) ────
+(function migrateEggSalad() {
+  const VERSION_KEY = 'migration_egg_salad_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+  const NEW_FOODS = ['cottage_cheese','roasted_red_pepper','smoked_paprika','salt','black_pepper','fresh_dill'];
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    if (raw) {
+      const db = JSON.parse(raw);
+      for (const id of NEW_FOODS) {
+        const seed = FOOD_DB.find(f => f.id === id);
+        if (seed && !db.some(f => f.id === id)) db.push({ ...seed });
+      }
+      localStorage.setItem('macrofooddb_v1', JSON.stringify(db));
+    }
+  } catch (e) { console.warn('Egg salad: foodDB step failed', e); }
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    if (raw) {
+      const recipes = JSON.parse(raw);
+      const seed = RECIPES.find(r => r.id === 'egg_salad_sandwich');
+      if (seed && !recipes.some(r => r.id === 'egg_salad_sandwich')) {
+        recipes.push({ ...seed, lineItems: seed.lineItems.map(l => ({ ...l, id: l.foodId + '_' + Math.random().toString(36).slice(2, 8) })) });
+        localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+      }
+    }
+  } catch (e) { console.warn('Egg salad: recipes step failed', e); }
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: Egg Salad Sandwich bread 2 slices → 1 slice ──────────
+(function migrateEggSaladBread() {
+  const VERSION_KEY = 'migration_egg_salad_bread_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    if (raw) {
+      const recipes = JSON.parse(raw);
+      const r = recipes.find(x => x.id === 'egg_salad_sandwich');
+      const l = r && r.lineItems.find(x => x.foodId === 'rudolphs_bread');
+      if (l) {
+        l.enteredQty = 1; l.mult = 0.5;
+        Object.assign(r, { cal: 478.3, p: 37.7, c: 42.3, f: 3.43, s: 8.6, fat: 17.72 });
+        localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+      }
+    }
+  } catch (e) { console.warn('Egg salad bread migration failed', e); }
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+
+// ─── One-time migration: thigh lunches lepeshka → bran bread ──────────────────
+(function migrateBranBreadLunches() {
+  const VERSION_KEY = 'migration_bran_bread_lunch_v1';
+  if (localStorage.getItem(VERSION_KEY) === 'done') return;
+  const SWAPS = { lunch_potato_week: 74, lunch_rice_week: 74, lunch_pasta_week: 64 };
+  try {
+    const raw = localStorage.getItem('macrofooddb_v1');
+    if (raw) {
+      const db = JSON.parse(raw);
+      const seed = FOOD_DB.find(f => f.id === 'bran_bread');
+      if (seed && !db.some(f => f.id === 'bran_bread')) { db.push({ ...seed }); localStorage.setItem('macrofooddb_v1', JSON.stringify(db)); }
+    }
+  } catch (e) { console.warn('Bran bread: foodDB step failed', e); }
+  try {
+    const raw = localStorage.getItem('macrorecipes_v1');
+    if (raw) {
+      const recipes = JSON.parse(raw);
+      for (const [rid, g] of Object.entries(SWAPS)) {
+        const r = recipes.find(x => x.id === rid);
+        const l = r && r.lineItems.find(x => x.foodId === 'non_lepeshka');
+        if (!l) continue;
+        Object.assign(l, { foodId: 'bran_bread', name: 'Bran Bread', enteredQty: g, mult: g / 100 });
+        const seed = RECIPES.find(x => x.id === rid);
+        if (seed) ['cal','p','c','f','s','fat'].forEach(k => r[k] = seed[k]);
+        r.sugarUncertain = true;
+      }
+      localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+    }
+  } catch (e) { console.warn('Bran bread: recipes step failed', e); }
+  localStorage.setItem(VERSION_KEY, 'done');
+})();
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f4f0;
+    --surface: #ffffff;
+    --surface2: #f9f9f6;
+    --border: #ddddd6;
+    --border2: #ebebе6;
+    --text: #111110;
+    --text2: #6b6b63;
+    --text3: #9b9b92;
+    --accent: #00895a;
+    --accent-bg: #e6f4ee;
+    --accent-dim: #b3dece;
+    --red: #d4351c;
+    --red-bg: #fef0ed;
+    --amber: #b85c00;
+    --amber-bg: #fef3e2;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --radius: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  }
+  html, body, #root { height: 100%; }
+  body { background: var(--bg); font-family: var(--sans); color: var(--text); font-size: 14px; line-height: 1.5; }
+  button { font-family: var(--sans); cursor: pointer; }
+  input, select, textarea { font-family: var(--sans); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  /* ── Mobile (≤640px). Overrides inline layout styles only; desktop untouched ── */
+  @media (max-width: 640px) {
+    html, body, #root { height: auto; min-height: 100%; }
+    .app-shell { flex-direction: column !important; height: auto !important; min-height: 100vh; overflow: visible !important; }
+    .app-main { overflow: visible !important; }
+    .sidebar { width: 100% !important; height: auto !important; position: static !important; border-right: none !important; border-bottom: 1px solid var(--border) !important; }
+    .sidebar-nav { display: flex !important; flex: 0 0 auto !important; flex-wrap: wrap; gap: 4px; padding: 8px 10px !important; }
+    .sidebar-nav button { width: auto !important; flex: 1 1 44% !important; justify-content: center; margin-bottom: 0 !important; white-space: nowrap; padding: 9px 8px !important; }
+    .sidebar-macros { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .sidebar-macros > div { flex-direction: column !important; align-items: flex-start !important; margin-bottom: 0 !important; gap: 1px; }
+    .page { padding: 18px 14px !important; }
+    .dash-top { grid-template-columns: 1fr !important; }
+    .macro-row { grid-template-columns: 1fr auto auto !important; grid-template-areas: "label value rem" "bar bar bar" !important; gap: 4px 10px !important; padding: 9px 0 !important; }
+    .macro-row > :nth-child(1) { grid-area: label; }
+    .macro-row > :nth-child(2) { grid-area: bar; }
+    .macro-row > :nth-child(3) { grid-area: value; }
+    .macro-row > :nth-child(4) { grid-area: rem; }
+    .slot-head { flex-wrap: wrap !important; gap: 2px 10px; }
+    .log-item { grid-template-columns: 14px 1fr auto 26px !important; grid-template-areas: "h nm cal del" "h mc mc del" !important; gap: 2px 8px !important; }
+    .log-item > :nth-child(1) { grid-area: h; align-self: start; }
+    .log-item > :nth-child(2) { grid-area: nm; }
+    .log-item > :nth-child(3) { grid-area: mc; }
+    .log-item > :nth-child(4) { grid-area: cal; align-self: start; text-align: right; }
+    .log-item > :nth-child(5) { grid-area: del; align-self: start; }
+    .modal-wrap { padding: 10px !important; align-items: flex-end !important; }
+    .modal-box { width: 100% !important; max-width: 100% !important; max-height: 88vh !important; }
+    .slot-row { flex-wrap: wrap !important; }
+    .slot-row button { flex: 1 1 62px !important; }
+    .db-toolbar { flex-wrap: wrap !important; }
+    .db-card { overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch; }
+    .db-row { min-width: 720px; }
+    .db-scroll { max-height: none !important; overflow: visible !important; }
+    .recipe-totals { grid-template-columns: repeat(3, 1fr) !important; }
+    .hist-grid { grid-template-columns: 1fr !important; }
+    button { min-height: 44px; }
+    .log-item button, .db-row button, .tap-sm { min-height: 0; }
+  }
+</style>
+<template id="__bundler_thumbnail" data-bg-color="#f4f4f0">
+  <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+    <!-- Sidebar -->
+    <rect x="0" y="0" width="28" height="80" fill="#ffffff" rx="0"/>
+    <rect x="6" y="8" width="16" height="3" rx="1.5" fill="#009960"/>
+    <rect x="6" y="13" width="10" height="2" rx="1" fill="#9b9b92"/>
+    <rect x="4" y="22" width="20" height="5" rx="2" fill="#e6f4ee"/>
+    <rect x="4" y="22" width="8" height="5" rx="2" fill="#009960"/>
+    <rect x="6" y="30" width="14" height="2" rx="1" fill="#009960"/>
+    <rect x="6" y="35" width="14" height="2" rx="1" fill="#ddddd6"/>
+    <rect x="6" y="40" width="14" height="2" rx="1" fill="#ddddd6"/>
+    <rect x="6" y="45" width="14" height="2" rx="1" fill="#ddddd6"/>
+    <!-- Main area -->
+    <rect x="32" y="8" width="82" height="20" rx="3" fill="#ffffff"/>
+    <!-- Calorie ring -->
+    <circle cx="44" cy="18" r="8" fill="none" stroke="#e0e0db" strokeWidth="2.5"/>
+    <circle cx="44" cy="18" r="8" fill="none" stroke="#009960" strokeWidth="2.5" strokeDasharray="35 50" strokeLinecap="round" transform="rotate(-90 44 18)"/>
+    <text x="44" y="20" textAnchor="middle" fill="#111" fontFamily="monospace" fontSize="4" fontWeight="bold">1842</text>
+    <!-- Macro bars -->
+    <rect x="57" y="11" width="50" height="1.5" rx="0.75" fill="#e0e0db"/>
+    <rect x="57" y="11" width="32" height="1.5" rx="0.75" fill="#009960"/>
+    <rect x="57" y="14.5" width="50" height="1.5" rx="0.75" fill="#e0e0db"/>
+    <rect x="57" y="14.5" width="40" height="1.5" rx="0.75" fill="#1a6bb5"/>
+    <rect x="57" y="18" width="50" height="1.5" rx="0.75" fill="#e0e0db"/>
+    <rect x="57" y="18" width="28" height="1.5" rx="0.75" fill="#b85c00"/>
+    <rect x="57" y="21.5" width="50" height="1.5" rx="0.75" fill="#e0e0db"/>
+    <rect x="57" y="21.5" width="20" height="1.5" rx="0.75" fill="#6a5acd"/>
+    <!-- Meal log -->
+    <rect x="32" y="32" width="82" height="40" rx="3" fill="#ffffff"/>
+    <rect x="32" y="32" width="82" height="7" rx="3" fill="#f9f9f6"/>
+    <rect x="36" y="35" width="16" height="2" rx="1" fill="#111"/>
+    <rect x="36" y="42" width="8" height="1.5" rx="0.75" fill="#009960"/>
+    <rect x="36" y="46" width="50" height="1.5" rx="0.75" fill="#ddddd6"/>
+    <rect x="36" y="50" width="40" height="1.5" rx="0.75" fill="#ddddd6"/>
+    <rect x="36" y="54" width="8" height="1.5" rx="0.75" fill="#009960"/>
+    <rect x="36" y="58" width="55" height="1.5" rx="0.75" fill="#ddddd6"/>
+    <rect x="36" y="62" width="30" height="1.5" rx="0.75" fill="#ddddd6"/>
+  </svg>
+</template>
+</head>
+<body>
+<div id="root"></div>
+<script src="tweaks-panel.jsx" type="text/babel"></script>
+<script src="FoodDatabase.jsx" type="text/babel"></script>
+<script src="GroceryList.jsx" type="text/babel"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+function useLS(key, def) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
+    catch { return def; }
+  });
+  const set = useCallback(v => {
+    setVal(prev => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      localStorage.setItem(key, JSON.stringify(next));
+      return next;
+    });
+  }, [key]);
+  return [val, set];
+}
+
+// ─── Meal time slots ─────────────────────────────────────────────────────────
+// Fixed daily eating windows. Stored as 24h "HH:00" so existing sort/match logic still works.
+const MEAL_SLOTS = [
+  { value: '08:00', label: '8 am' },
+  { value: '10:00', label: '10 am' },
+  { value: '11:00', label: '11 am' },
+  { value: '13:00', label: '1 pm' },
+  { value: '15:00', label: '3 pm' },
+  { value: '17:00', label: '5 pm' },
+  { value: '20:00', label: '8 pm' },
+];
+function formatSlot(time) {
+  const slot = MEAL_SLOTS.find(s => s.value === time);
+  if (slot) return slot.label;
+  // Fallback for legacy entries logged before slots existed
+  if (!time) return '';
+  const [h, m] = time.split(':').map(Number);
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12 = ((h + 11) % 12) + 1;
+  return m ? `${h12}:${String(m).padStart(2,'0')} ${ampm}` : `${h12} ${ampm}`;
+}
+function nearestSlot() {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  let best = MEAL_SLOTS[0].value;
+  let bestDiff = Infinity;
+  for (const s of MEAL_SLOTS) {
+    const [sh, sm] = s.value.split(':').map(Number);
+    const diff = Math.abs(sh * 60 + sm - mins);
+    if (diff < bestDiff) { bestDiff = diff; best = s.value; }
+  }
+  return best;
+}
+
+// ─── parsePortion ─────────────────────────────────────────────────────────────
+// "100 g" → { baseQty: 100, unit: "g" }
+// "1 pc"  → { baseQty: 1,   unit: "pc" }
+// "2 tbsp"→ { baseQty: 2,   unit: "tbsp" }
+function parsePortion(portion) {
+  if (!portion) return { baseQty: 1, unit: '' };
+  const m = String(portion).match(/^([\d.]+)\s*(.+?)(\s*\(.*\))?$/);
+  if (m) return { baseQty: parseFloat(m[1]) || 1, unit: m[2].trim() };
+  return { baseQty: 1, unit: portion };
+}
+
+// ─── MiniBar ─────────────────────────────────────────────────────────────────
+function MiniBar({ value, target, color = 'var(--accent)', height = 5 }) {
+  const pct = Math.min(100, target > 0 ? (value / target) * 100 : 0);
+  const over = value > target && target > 0;
+  return (
+    <div style={{ background: 'var(--border)', borderRadius: 99, height, overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{
+        width: `${pct}%`, height: '100%',
+        background: over ? 'var(--red)' : color,
+        borderRadius: 99, transition: 'width 0.3s ease'
+      }} />
+    </div>
+  );
+}
+
+// ─── StatusDot ────────────────────────────────────────────────────────────────
+// Green / yellow / red range status, using the same dot convention as the
+// history calendar.
+function StatusDot({ status, size = 7 }) {
+  const label = { green: 'In range', yellow: 'Borderline', red: 'Out of range' }[status] || '';
+  return <span title={label} style={{ width: size, height: size, borderRadius: '50%', background: STATUS_COLOR[status], display: 'inline-block', flexShrink: 0 }} />;
+}
+
+// ─── MacroTable ───────────────────────────────────────────────────────────────
+function MacroTable({ totals, goals, processedSugar = 0 }) {
+  const rows = [
+    { key: 'cal',  label: 'Calories', unit: 'kcal', color: '#1a6bb5' },
+    { key: 'p',    label: 'Protein',  unit: 'g',    color: 'var(--accent)' },
+    { key: 'c',    label: 'Carbs',    unit: 'g',    color: '#b85c00' },
+    { key: 'f',    label: 'Fiber',    unit: 'g',    color: '#6a5acd' },
+    { key: 's',    label: 'Sugars',   unit: 'g',    color: '#c0396b' },
+    { key: 'fat',  label: 'Fat',      unit: 'g',    color: '#6b6b63' },
+  ];
+  return (
+    <div style={{ width: '100%' }}>
+      {rows.map(r => {
+        const val = totals[r.key] || 0;
+        const tgt = goals[r.key] || 0;
+        const rem = tgt - val;
+        const over = val > tgt && tgt > 0;
+        const status = macroStatus(r.key, val, { processedSugar });
+        return (
+          <div key={r.key} className="macro-row" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 70px 70px', gap: '0 12px', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontFamily: 'var(--sans)', fontSize: 12, color: 'var(--text2)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}><StatusDot status={status} />{r.label}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <MiniBar value={val} target={tgt} color={r.color} height={4} />
+            </div>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: STATUS_COLOR[status] === 'var(--accent)' ? 'var(--text)' : STATUS_COLOR[status], textAlign: 'right', whiteSpace: 'nowrap' }}>
+              {r1(val)}<span style={{ fontWeight: 400, color: 'var(--text3)', fontSize: 11 }}> / {tgt}{r.unit === 'kcal' ? '' : ''}</span>
+            </span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: over ? 'var(--red)' : rem < tgt * 0.1 ? 'var(--amber)' : 'var(--text2)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+              {over ? '+' : ''}{r1(over ? val - tgt : rem)}{r.unit === 'kcal' ? ' kcal' : 'g'}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── AddMealModal ─────────────────────────────────────────────────────────────
+function AddMealModal({ onAdd, onClose, foodDB, recipes }) {
+  const [tab, setTab] = useState('food'); // 'food' | 'recipe' | 'plan'
+  const [search, setSearch] = useState('');
+  const [time, setTime] = useState(() => nearestSlot());
+  const [selected, setSelected] = useState(null);
+  const [enteredQty, setEnteredQty] = useState(1);
+  const [servings, setServings] = useState(1);
+
+  const allItems = tab === 'food' ? foodDB : tab === 'recipe' ? recipes : null;
+  const filtered = allItems ? allItems.filter(i => i.name.toLowerCase().includes(search.toLowerCase())) : [];
+
+  // When a new item is selected, reset qty to its base portion amount
+  const parsedPortion = selected ? parsePortion(selected.portion) : { baseQty: 1, unit: '' };
+
+  // Weighable = grams or millilitres → adjust by raw weight, no servings divider
+  const isWeighable = ['g', 'ml'].includes(parsedPortion.unit?.toLowerCase());
+
+  useEffect(() => {
+    if (selected) {
+      setEnteredQty(parsedPortion.baseQty);
+      setServings(1);
+    }
+  }, [selected?.id]);
+
+  // For weighable items: mult = enteredGrams / baseGrams (ignore servings)
+  // For count items:    mult = enteredQty / baseQty / servings
+  const effectiveMult = isWeighable
+    ? enteredQty / parsedPortion.baseQty
+    : (enteredQty / parsedPortion.baseQty) / Math.max(servings, 1);
+  const isBatch = !isWeighable && servings > 1;
+
+  function confirm() {
+    if (tab === 'plan' && selected) {
+      onAdd({ plan: selected });
+    } else if (selected) {
+      const qtyLabel = `${enteredQty} ${parsedPortion.unit}`.trim();
+      onAdd({
+        time,
+        items: [{
+          ...selected,
+          qty_mult: effectiveMult,
+          qty: qtyLabel,
+          _batchServings: (!isWeighable && servings > 1) ? servings : undefined
+        }]
+      });
+    }
+    onClose();
+  }
+
+  const modalStyle = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000,
+    display: 'flex', alignItems: 'center', justifyContent: 'center'
+  };
+  const boxStyle = {
+    background: 'var(--surface)', borderRadius: 10, width: 480, maxWidth: 'calc(100vw - 24px)', maxHeight: '80vh',
+    display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden'
+  };
+
+  return (
+    <div className="modal-wrap" style={modalStyle} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal-box" style={boxStyle}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>Add to Log</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text2)', padding: '0 4px' }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)' }}>
+          {['food','recipe','plan'].map(t => (
+            <button key={t} onClick={() => { setTab(t); setSelected(null); setSearch(''); }}
+              style={{ flex: 1, padding: '10px 0', border: 'none', background: 'none', fontWeight: 500, fontSize: 13,
+                color: tab === t ? 'var(--accent)' : 'var(--text2)',
+                borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+                textTransform: 'capitalize' }}>
+              {t === 'plan' ? 'Diet Plan' : t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {tab !== 'plan' ? (
+          <>
+            <div style={{ padding: '12px 16px 10px', borderBottom: '1px solid var(--border)' }}>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={`Search ${tab}s…`}
+                style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--bg)' }} />
+              <div className="slot-row" style={{ display: 'flex', gap: 6, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, marginRight: 2 }}>Slot</span>
+                {MEAL_SLOTS.map(s => {
+                  const active = time === s.value;
+                  return (
+                    <button key={s.value} onClick={() => setTime(s.value)}
+                      style={{
+                        flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                        fontFamily: 'var(--mono)',
+                        border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                        background: active ? 'var(--accent-bg)' : 'var(--bg)',
+                        color: active ? 'var(--accent)' : 'var(--text2)',
+                        transition: 'all 0.15s ease'
+                      }}>
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {filtered.map(item => (
+                <div key={item.id} onClick={() => setSelected(item)}
+                  style={{ padding: '10px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: selected?.id === item.id ? 'var(--accent-bg)' : 'transparent',
+                    borderBottom: '1px solid var(--border)' }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', fontFamily: 'var(--mono)' }}>{item.portion}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13 }}>{r1(item.cal)} kcal</div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>
+                      P {r1(item.p)}  C {r1(item.c)}  Fat {r1(item.fat)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {selected && (
+              <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                {/* Smart qty + batch row */}
+                <div style={{ padding: '10px 16px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: 'var(--bg)' }}>
+                    <input type="number" value={enteredQty} min={0} step={isWeighable ? 1 : 0.5}
+                      onChange={e => setEnteredQty(parseFloat(e.target.value) || 0)}
+                      style={{ width: 72, padding: '6px 10px', border: 'none', fontFamily: 'var(--mono)', fontSize: 14, fontWeight: 600, outline: 'none', background: 'transparent', textAlign: 'right' }} />
+                    <span style={{ padding: '6px 10px 6px 4px', fontSize: 12, color: 'var(--text2)', borderLeft: '1px solid var(--border)', background: 'var(--surface2)', whiteSpace: 'nowrap' }}>
+                      {parsedPortion.unit || 'serving'}
+                    </span>
+                  </div>
+                  {!isWeighable && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>÷</span>
+                      <input type="number" value={servings} min={1} step={1}
+                        onChange={e => setServings(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: 48, padding: '5px 8px', border: `1px solid ${isBatch ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 6, fontFamily: 'var(--mono)', fontSize: 13, textAlign: 'center', background: isBatch ? 'var(--accent-bg)' : 'var(--bg)', outline: 'none' }} />
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>servings</span>
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }} />
+                  <button onClick={confirm} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                    Add
+                  </button>
+                </div>
+                {/* Live macro preview */}
+                <div style={{ padding: '8px 16px 12px', display: 'flex', gap: 12, alignItems: 'center', borderTop: '1px solid var(--border)' }}>
+                  {isBatch && (
+                    <span style={{ fontSize: 10, fontFamily: 'var(--mono)', background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '2px 6px', flexShrink: 0 }}>
+                      1/{servings}
+                    </span>
+                  )}
+                  {[{ label: 'kcal', val: selected.cal }, { label: 'P', val: selected.p }, { label: 'C', val: selected.c }, { label: 'Fat', val: selected.fat }].map(({ label, val }) => (
+                    <div key={label} style={{ textAlign: 'center' }}>
+                      <div style={{ fontFamily: 'var(--mono)', fontSize: 14, fontWeight: 600 }}>{r1(val * effectiveMult)}</div>
+                      <div style={{ fontSize: 9, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
+                    </div>
+                  ))}
+                  <div style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', textAlign: 'right' }}>
+                    base: {selected.cal} kcal / {parsedPortion.baseQty}{parsedPortion.unit}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {DIET_PLANS.map(plan => {
+              const t = sumMeals(plan.meals);
+              return (
+                <div key={plan.id} onClick={() => setSelected(plan)}
+                  style={{ padding: '14px 16px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                    background: selected?.id === plan.id ? 'var(--accent-bg)' : 'transparent' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{plan.name}</div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)', marginTop: 4 }}>
+                    {r1(t.cal)} kcal · P {r1(t.p)}g · C {r1(t.c)}g · Fat {r1(t.fat)}g
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>{plan.meals.length} meals · {plan.meals.reduce((a,m) => a + m.items.length, 0)} items</div>
+                </div>
+              );
+            })}
+            {selected && (
+              <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', background: 'var(--surface2)' }}>
+                <button onClick={confirm} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, fontSize: 13 }}>
+                  Load Plan
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked }) {
+  const [showModal, setShowModal] = useState(false);
+  const [showGrocery, setShowGrocery] = useState(false);
+  // Foods are the only draggable units. draggedItem = { time, idx }.
+  // Time slots are a fixed, static daily timeline (MEAL_SLOTS).
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverTime, setDragOverTime] = useState(null);
+  const clearDrag = () => { setDraggedItem(null); setDragOverTime(null); };
+  // Which day the log is showing. Defaults to today; navigable to any past/future date.
+  const [viewDate, setViewDate] = useState(() => todayKey());
+  const dateInputRef = useRef(null);
+  const key = viewDate;
+  const isToday = viewDate === todayKey();
+  const meals = log[key] || [];
+  const totals = sumMeals(meals);
+
+  function shiftDay(delta) {
+    setViewDate(prev => {
+      const d = new Date(prev + 'T00:00:00');
+      d.setDate(d.getDate() + delta);
+      return localDateKey(d);
+    });
+  }
+  function relLabel(k) {
+    const t = new Date(todayKey() + 'T00:00:00');
+    const d = new Date(k + 'T00:00:00');
+    const diff = Math.round((d - t) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === -1) return 'Yesterday';
+    if (diff === 1) return 'Tomorrow';
+    const sign = diff > 0 ? '+' : '−';
+    return `${d.toLocaleDateString('en-CA', { weekday: 'long' })} · ${sign}${Math.abs(diff)}d`;
+  }
+  function openPicker() {
+    const el = dateInputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') { try { el.showPicker(); return; } catch (e) {} }
+    el.focus(); el.click();
+  }
+
+  function addEntry(entry) {
+    if (entry.plan) {
+      setLog(prev => ({ ...prev, [key]: [...(prev[key] || []), ...entry.plan.meals] }));
+    } else {
+      const existing = meals.find(m => m.time === entry.time);
+      if (existing) {
+        setLog(prev => ({
+          ...prev,
+          [key]: prev[key].map(m => m.time === entry.time
+            ? { ...m, items: [...m.items, ...entry.items] }
+            : m)
+        }));
+      } else {
+        setLog(prev => ({ ...prev, [key]: [...(prev[key] || []), { time: entry.time, items: entry.items }] }));
+      }
+    }
+  }
+
+  function removeItem(mealIdx, itemIdx) {
+    setLog(prev => {
+      const updated = [...(prev[key] || [])];
+      updated[mealIdx] = { ...updated[mealIdx], items: updated[mealIdx].items.filter((_, i) => i !== itemIdx) };
+      return { ...prev, [key]: updated.filter(m => m.items.length > 0) };
+    });
+  }
+
+  // Move a single food item from one slot to another. Creates the destination
+  // meal if needed, merges if it exists, and drops the source meal if it empties.
+  function moveItem(fromTime, itemIdx, toTime) {
+    if (fromTime == null || toTime == null || fromTime === toTime) return;
+    setLog(prev => {
+      let dayMeals = [...(prev[key] || [])];
+      const fromIdx = dayMeals.findIndex(m => m.time === fromTime);
+      if (fromIdx === -1) return prev;
+      const item = dayMeals[fromIdx].items[itemIdx];
+      if (!item) return prev;
+      // remove from source
+      dayMeals = dayMeals.map(m => m.time === fromTime ? { ...m, items: m.items.filter((_, i) => i !== itemIdx) } : m);
+      // add to destination (existing meal or a new one)
+      const toIdx = dayMeals.findIndex(m => m.time === toTime);
+      if (toIdx === -1) dayMeals.push({ time: toTime, items: [item] });
+      else dayMeals = dayMeals.map(m => m.time === toTime ? { ...m, items: [...m.items, item] } : m);
+      // drop any meal left with no items
+      dayMeals = dayMeals.filter(m => m.items.length > 0);
+      return { ...prev, [key]: dayMeals };
+    });
+  }
+
+  function clearDay() {
+    if (confirm(`Clear all meals for ${isToday ? 'today' : new Date(viewDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}?`)) setLog(prev => ({ ...prev, [key]: [] }));
+  }
+
+  const sortedMeals = [...meals].sort((a, b) => a.time?.localeCompare(b.time));
+  const calPct = Math.min(100, goals.cal > 0 ? (totals.cal / goals.cal) * 100 : 0);
+
+  // Fixed daily timeline: always render every meal slot. Foods are dragged
+  // between slots; the slots themselves are static. Any legacy entry whose time
+  // isn't one of the slots is shown too so no logged data is ever hidden.
+  const slotValues = new Set(MEAL_SLOTS.map(s => s.value));
+  const slotEntries = MEAL_SLOTS.map(s => ({ time: s.value, label: s.label, meal: meals.find(m => m.time === s.value) || null }));
+  const legacyEntries = meals
+    .filter(m => !slotValues.has(m.time))
+    .map(m => ({ time: m.time, label: formatSlot(m.time), meal: m }));
+  const timeline = [...slotEntries, ...legacyEntries].sort((a, b) => String(a.time).localeCompare(String(b.time)));
+
+  const dateStr = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const navBtnStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, width: 30, height: 30, cursor: 'pointer', fontSize: 15, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 };
+
+  return (
+    <div className="page" style={{ padding: '28px 32px', maxWidth: 900, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: isToday ? 'var(--text3)' : 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1 }}>{relLabel(viewDate)}</div>
+          {/* Date navigator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, position: 'relative' }}>
+            <button onClick={() => shiftDay(-1)} title="Previous day" style={navBtnStyle}>‹</button>
+            <button onClick={openPicker} title="Pick a date"
+              style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>{dateStr}</span>
+              <span style={{ fontSize: 13, color: 'var(--text3)' }}>▾</span>
+            </button>
+            <button onClick={() => shiftDay(1)} title="Next day" style={navBtnStyle}>›</button>
+            {!isToday && (
+              <button onClick={() => setViewDate(todayKey())}
+                style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-dim)', color: 'var(--accent)', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginLeft: 4 }}>
+                Jump to today
+              </button>
+            )}
+            {/* Hidden native picker for arbitrary-date jumps */}
+            <input ref={dateInputRef} type="date" value={viewDate}
+              onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
+              style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', left: 38, bottom: 0 }} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {meals.length > 0 && <button onClick={clearDay} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 14px', fontSize: 12, color: 'var(--text2)' }}>Clear</button>}
+          {meals.length > 0 && <button onClick={() => setShowGrocery(true)} title="Generate grocery list" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 14px', fontSize: 12, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+            🛒 Grocery list
+          </button>}
+          <button onClick={() => setShowModal(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600 }}>
+            + Add Meal
+          </button>
+        </div>
+      </div>
+
+      {/* Big calorie ring + macro table */}
+      <div className="dash-top" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, marginBottom: 20 }}>
+        {/* Calorie ring */}
+        <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow)' }}>
+          <CalRing value={totals.cal} target={goals.cal} />
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>REMAINING</div>
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 18, fontWeight: 600, color: totals.cal > goals.cal ? 'var(--red)' : 'var(--text)' }}>
+              {totals.cal > goals.cal ? '+' : ''}{r1(Math.abs(goals.cal - totals.cal))}
+            </div>
+          </div>
+        </div>
+
+        {/* Macro table */}
+        <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
+          <MacroTable totals={totals} goals={goals} processedSugar={processedSugarTotal(meals, foodDB)} />
+        </div>
+      </div>
+
+      {/* Meal timeline */}
+      <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontWeight: 600, fontSize: 13 }}>Meal Log</span>
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>Drag any food onto another time slot to reschedule it</span>
+          </div>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>{meals.reduce((a,m) => a + m.items.length, 0)} items</span>
+        </div>
+        {timeline.map((entry) => {
+          const meal = entry.meal;
+          const isOver = dragOverTime === entry.time && draggedItem && draggedItem.time !== entry.time;
+          const mTotals = meal ? sumMeals([meal]) : null;
+          return (
+            <div key={'slot-' + entry.time}
+              onDragOver={e => { if (draggedItem && draggedItem.time !== entry.time) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dragOverTime !== entry.time) setDragOverTime(entry.time); } }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverTime(t => t === entry.time ? null : t); }}
+              onDrop={e => { if (draggedItem && draggedItem.time !== entry.time) { e.preventDefault(); moveItem(draggedItem.time, draggedItem.idx, entry.time); } clearDrag(); }}
+              style={{ borderBottom: '1px solid var(--border)', background: isOver ? 'var(--accent-bg)' : 'transparent', boxShadow: isOver ? 'inset 0 0 0 1.5px var(--accent)' : 'none', transition: 'background 0.12s' }}>
+              {/* Static slot header */}
+              <div className="slot-head" style={{ padding: '10px 20px', background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, color: meal ? 'var(--accent)' : 'var(--text3)' }}>{entry.label}</span>
+                {meal
+                  ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)' }}>{r1(mTotals.cal)} kcal · P {r1(mTotals.p)}g · C {r1(mTotals.c)}g · Fat {r1(mTotals.fat)}g</span>
+                  : <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text3)' }}>—</span>}
+              </div>
+              {/* Foods (draggable) or empty drop hint */}
+              {meal ? meal.items.map((item, ii) => {
+                const mult = item.qty_mult || 1;
+                const itemDragging = draggedItem && draggedItem.time === entry.time && draggedItem.idx === ii;
+                return (
+                  <div key={ii}
+                    draggable
+                    onDragStart={e => { e.stopPropagation(); setDraggedItem({ time: entry.time, idx: ii }); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', item.name); } catch (_) {} }}
+                    onDragEnd={clearDrag}
+                    title="Drag this food to another time slot"
+                    className="log-item"
+                    style={{ padding: '9px 20px 9px 14px', display: 'grid', gridTemplateColumns: '18px 1fr 140px 60px 24px', gap: 8, alignItems: 'center', borderBottom: ii < meal.items.length - 1 ? '1px solid var(--border)' : 'none', cursor: 'grab', opacity: itemDragging ? 0.4 : 1, background: itemDragging ? 'var(--accent-bg)' : 'transparent', transition: 'opacity 0.12s' }}>
+                    <span style={{ color: 'var(--text3)', fontSize: 13, lineHeight: 1, letterSpacing: -2, userSelect: 'none', textAlign: 'center' }}>⠿</span>
+                    <div>
+                      <span style={{ fontSize: 13 }}>{item.name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text3)', marginLeft: 8, fontFamily: 'var(--mono)' }}>{item.qty || item.portion}{mult !== 1 ? ` ×${mult}` : ''}</span>
+                      {item._batchServings && (
+                        <span style={{ marginLeft: 6, fontSize: 10, fontFamily: 'var(--mono)', background: 'var(--accent-bg)', color: 'var(--accent)', borderRadius: 4, padding: '1px 5px', border: '1px solid var(--accent-dim)' }}>
+                          1/{item._batchServings}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text2)', whiteSpace: 'nowrap' }}>
+                      P {r1(item.p * mult)}  C {r1(item.c * mult)}  Fat {r1(item.fat * mult)}
+                    </div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {r1(item.cal * mult)} <span style={{ fontWeight: 400, color: 'var(--text3)', fontSize: 10 }}>kcal</span>
+                    </div>
+                    <button onClick={() => removeItem(meals.indexOf(meal), ii)}
+                      onDragStart={e => e.preventDefault()}
+                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'center' }}>×</button>
+                  </div>
+                );
+              }) : (
+                <div style={{ padding: '13px 20px', textAlign: 'center', fontSize: 11, fontFamily: 'var(--mono)', color: isOver ? 'var(--accent)' : 'var(--text3)' }}>
+                  {isOver ? 'Drop food here' : 'Empty'}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {showModal && <AddMealModal onAdd={addEntry} onClose={() => setShowModal(false)} foodDB={foodDB} recipes={recipes} />}
+      {showGrocery && window.GroceryList && <window.GroceryList meals={meals} foodDB={foodDB} stocked={stocked} setStocked={setStocked} dateKey={key} onClose={() => setShowGrocery(false)} />}
+    </div>
+  );
+}
+
+// ─── CalRing ──────────────────────────────────────────────────────────────────
+function CalRing({ value, target }) {
+  const r = 52, cx = 64, cy = 64, stroke = 9;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(1, target > 0 ? value / target : 0);
+  const over = value > target && target > 0;
+  return (
+    <svg width={128} height={128} viewBox="0 0 128 128">
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+      <circle cx={cx} cy={cy} r={r} fill="none"
+        stroke={over ? 'var(--red)' : 'var(--accent)'}
+        strokeWidth={stroke}
+        strokeDasharray={circ}
+        strokeDashoffset={circ * (1 - pct)}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${cx} ${cy})`}
+        style={{ transition: 'stroke-dashoffset 0.5s ease' }}
+      />
+      <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text)" fontFamily="IBM Plex Mono" fontSize={18} fontWeight={600}>{r1(value)}</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--text3)" fontFamily="IBM Plex Mono" fontSize={10}>of {target}</text>
+      <text x={cx} y={cy + 22} textAnchor="middle" fill="var(--text3)" fontFamily="IBM Plex Sans" fontSize={9}>kcal</text>
+    </svg>
+  );
+}
+
+// FoodDatabase is loaded from FoodDatabase.jsx (exported to window)
+const FoodDatabase = window.FoodDatabase;
+
+// ─── History ──────────────────────────────────────────────────────────────────
+function History({ log, goals, setLog }) {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selected, setSelected] = useState(null);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyTargets, setApplyTargets] = useState([]); // array of YYYY-MM-DD
+  const [applyMode, setApplyMode] = useState('pick'); // 'pick' | 'range'
+  const [applyCalMonth, setApplyCalMonth] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [rangeStart, setRangeStart] = useState(todayKey());
+  const [rangeEnd, setRangeEnd] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 6); return localDateKey(d); });
+  const [rangeWeekdays, setRangeWeekdays] = useState([0,1,2,3,4,5,6]); // 0=Sun
+  const [overwriteMode, setOverwriteMode] = useState('add'); // 'add' | 'replace' | 'skip'
+  const [applyToast, setApplyToast] = useState('');
+
+  const monthName = new Date(year, month).toLocaleString('en-CA', { month: 'long', year: 'numeric' });
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  function dayKey(d) { return `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+
+  function prevMonth() { if (month === 0) { setYear(y => y-1); setMonth(11); } else setMonth(m => m-1); }
+  function nextMonth() { if (month === 11) { setYear(y => y+1); setMonth(0); } else setMonth(m => m+1); }
+
+  const selectedMeals = selected ? (log[dayKey(selected)] || []) : [];
+  const selectedTotals = sumMeals(selectedMeals);
+
+  // Resolved targets based on the active mode
+  const resolvedTargets = React.useMemo(() => {
+    if (applyMode === 'pick') return [...applyTargets].sort();
+    // range mode: enumerate every day between rangeStart..rangeEnd, filtered by weekdays
+    if (!rangeStart || !rangeEnd) return [];
+    const a = new Date(rangeStart + 'T00:00:00');
+    const b = new Date(rangeEnd + 'T00:00:00');
+    if (isNaN(a) || isNaN(b)) return [];
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    const out = [];
+    const cur = new Date(lo);
+    while (cur <= hi) {
+      if (rangeWeekdays.includes(cur.getDay())) out.push(localDateKey(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return out;
+  }, [applyMode, applyTargets, rangeStart, rangeEnd, rangeWeekdays]);
+
+  function toggleTarget(k) {
+    setApplyTargets(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
+  }
+
+  function applyToDays() {
+    if (!selected || selectedMeals.length === 0) return;
+    const sourceKey = dayKey(selected);
+    const targets = resolvedTargets.filter(k => k !== sourceKey);
+    if (targets.length === 0) { setApplyToast('Pick at least one target day'); setTimeout(() => setApplyToast(''), 2200); return; }
+
+    // Confirmation for replace mode
+    if (overwriteMode === 'replace') {
+      const willOverwrite = targets.filter(k => (log[k] || []).length > 0);
+      if (willOverwrite.length > 0 && !confirm(`This will overwrite ${willOverwrite.length} day${willOverwrite.length === 1 ? '' : 's'} that already have meals. Continue?`)) return;
+    }
+
+    let copied = 0, skipped = 0;
+    setLog(prev => {
+      const next = { ...prev };
+      for (const k of targets) {
+        const cloned = JSON.parse(JSON.stringify(selectedMeals));
+        const existing = next[k] || [];
+        if (existing.length > 0) {
+          if (overwriteMode === 'skip') { skipped++; continue; }
+          if (overwriteMode === 'replace') next[k] = cloned;
+          else next[k] = [...existing, ...cloned]; // add
+        } else {
+          next[k] = cloned;
+        }
+        copied++;
+      }
+      return next;
+    });
+    setApplyOpen(false);
+    setApplyTargets([]);
+    const skipMsg = skipped > 0 ? ` · skipped ${skipped}` : '';
+    setApplyToast(`Copied to ${copied} day${copied === 1 ? '' : 's'}${skipMsg}`);
+    setTimeout(() => setApplyToast(''), 2600);
+  }
+
+  function shiftPickFromSelected(days) {
+    if (!selected) return;
+    const src = new Date(year, month, selected);
+    src.setDate(src.getDate() + days);
+    const k = localDateKey(src);
+    toggleTarget(k);
+  }
+
+  return (
+    <div className="page" style={{ padding: '28px 32px', maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1 }}>Log</div>
+        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>Monthly History</div>
+      </div>
+
+      <div className="hist-grid" style={{ display: 'grid', gridTemplateColumns: selected ? '1fr 320px' : '1fr', gap: 20, alignItems: 'start' }}>
+        <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+          {/* Month nav */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button onClick={prevMonth} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 14 }}>‹</button>
+            <span style={{ fontWeight: 600 }}>{monthName}</span>
+            <button onClick={nextMonth} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, width: 32, height: 32, cursor: 'pointer', fontSize: 14 }}>›</button>
+          </div>
+          {/* Day names */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '10px 16px 6px' }}>
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{d}</div>
+            ))}
+          </div>
+          {/* Calendar grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '0 16px 16px', gap: 4 }}>
+            {Array(firstDay).fill(null).map((_, i) => <div key={'e'+i} />)}
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+              const k = dayKey(d);
+              const meals = log[k] || [];
+              const t = sumMeals(meals);
+              const hasMeals = meals.length > 0;
+              const pct = goals.cal > 0 ? t.cal / goals.cal : 0;
+              const isToday = k === todayKey();
+              const isSel = selected === d;
+              let dotColor = 'var(--text3)';
+              if (hasMeals) dotColor = pct >= 0.95 && pct <= 1.1 ? 'var(--accent)' : pct > 1.1 ? 'var(--red)' : 'var(--amber)';
+
+              return (
+                <div key={d} onClick={() => setSelected(isSel ? null : d)}
+                  style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 6, cursor: 'pointer', position: 'relative',
+                    background: isSel ? 'var(--accent-bg)' : isToday ? 'var(--bg)' : 'transparent',
+                    border: isToday ? '1px solid var(--accent-dim)' : '1px solid transparent',
+                    transition: 'background 0.15s' }}>
+                  <span style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text)' }}>{d}</span>
+                  {hasMeals && (
+                    <div style={{ width: 5, height: 5, borderRadius: '50%', background: dotColor, marginTop: 2 }} />
+                  )}
+                  {!hasMeals && <div style={{ width: 5, height: 5 }} />}
+                </div>
+              );
+            })}
+          </div>
+          {/* Legend */}
+          <div style={{ padding: '10px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 16, fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>
+            {[['var(--accent)', 'On target (95–110%)'], ['var(--amber)', 'Under target'], ['var(--red)', 'Over target']].map(([c, l]) => (
+              <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: c, display: 'inline-block' }} />{l}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Day detail */}
+        {selected && (
+          <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>{new Date(year, month, selected).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {selectedMeals.length > 0 && (
+                  <button onClick={() => { setApplyTargets([]); setApplyMode('pick'); setApplyOpen(true); }}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 11, color: 'var(--text)', cursor: 'pointer', fontWeight: 500 }}>
+                    Duplicate to…
+                  </button>
+                )}
+                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer' }}>×</button>
+              </div>
+            </div>
+            {selectedMeals.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--text3)', fontSize: 12 }}>No meals logged</div>
+            ) : (
+              <>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                  <MacroTable totals={selectedTotals} goals={goals} />
+                </div>
+                <div style={{ overflowY: 'auto', maxHeight: 360 }}>
+                  {[...selectedMeals].sort((a,b) => a.time?.localeCompare(b.time)).map((meal, mi) => (
+                    <div key={mi} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ padding: '8px 16px', background: 'var(--surface2)', fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>{formatSlot(meal.time)}</div>
+                      {meal.items.map((item, ii) => {
+                        const mult = item.qty_mult || 1;
+                        return (
+                          <div key={ii} style={{ padding: '7px 16px 7px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: ii < meal.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                            <div>
+                              <div style={{ fontSize: 12 }}>{item.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{item.qty || item.portion}</div>
+                            </div>
+                            <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600 }}>{r1(item.cal * mult)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {applyToast && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'var(--text)', color: '#fff', padding: '10px 18px', borderRadius: 8, fontSize: 12, fontFamily: 'var(--mono)', boxShadow: '0 6px 20px rgba(0,0,0,0.2)', zIndex: 1600 }}>
+          {applyToast}
+        </div>
+      )}
+
+      {applyOpen && selected && (() => {
+        const sourceKey = dayKey(selected);
+        const sourceDate = new Date(year, month, selected);
+        const cm = applyCalMonth;
+        const cmFirst = new Date(cm.y, cm.m, 1).getDay();
+        const cmDays = new Date(cm.y, cm.m + 1, 0).getDate();
+        const cmName = new Date(cm.y, cm.m).toLocaleString('en-CA', { month: 'long', year: 'numeric' });
+        const fmtK = k => k; // keep raw
+        const targetCount = resolvedTargets.filter(k => k !== sourceKey).length;
+        const conflictCount = resolvedTargets.filter(k => k !== sourceKey && (log[k] || []).length > 0).length;
+
+        return (
+        <div onClick={e => e.target === e.currentTarget && setApplyOpen(false)}
+          className="modal-wrap"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="modal-box" style={{ background: 'var(--surface)', borderRadius: 10, width: 520, maxWidth: '96vw', maxHeight: '92vh', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1 }}>Duplicate day</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>
+                  Copy {selectedMeals.length} meal{selectedMeals.length === 1 ? '' : 's'} from {sourceDate.toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </div>
+              </div>
+              <button onClick={() => setApplyOpen(false)} style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text2)', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {/* Mode tabs */}
+            <div style={{ display: 'flex', padding: '0 18px', borderBottom: '1px solid var(--border)', gap: 0 }}>
+              {[['pick', 'Pick dates'], ['range', 'Date range']].map(([k, label]) => (
+                <button key={k} onClick={() => setApplyMode(k)}
+                  style={{ background: 'none', border: 'none', padding: '12px 14px', fontSize: 12, fontWeight: 600,
+                    color: applyMode === k ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer',
+                    borderBottom: `2px solid ${applyMode === k ? 'var(--accent)' : 'transparent'}`, marginBottom: -1 }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ padding: '14px 18px', overflowY: 'auto', flex: 1 }}>
+              {applyMode === 'pick' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Quick shift buttons */}
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Quick shift from source</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {[-14, -7, -2, -1, 1, 2, 7, 14].map(d => {
+                        const dt = new Date(sourceDate); dt.setDate(dt.getDate() + d);
+                        const k = localDateKey(dt);
+                        const active = applyTargets.includes(k);
+                        return (
+                          <button key={d} onClick={() => toggleTarget(k)}
+                            style={{ padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, fontFamily: 'var(--mono)',
+                              border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                              background: active ? 'var(--accent-bg)' : 'var(--bg)',
+                              color: active ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer' }}>
+                            {d > 0 ? `+${d}d` : `${d}d`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Mini calendar — click to toggle */}
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface2)' }}>
+                      <button onClick={() => setApplyCalMonth(c => c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 })}
+                        style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', fontSize: 12 }}>‹</button>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{cmName}</span>
+                      <button onClick={() => setApplyCalMonth(c => c.m === 11 ? { y: c.y + 1, m: 0 } : { y: c.y, m: c.m + 1 })}
+                        style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, width: 26, height: 26, cursor: 'pointer', fontSize: 12 }}>›</button>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '6px 10px 0' }}>
+                      {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+                        <div key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 600, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{d}</div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', padding: '4px 10px 10px', gap: 2 }}>
+                      {Array(cmFirst).fill(null).map((_, i) => <div key={'e'+i} />)}
+                      {Array.from({ length: cmDays }, (_, i) => i + 1).map(d => {
+                        const k = `${cm.y}-${String(cm.m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                        const isSource = k === sourceKey;
+                        const isPicked = applyTargets.includes(k);
+                        const hasLog = (log[k] || []).length > 0;
+                        const isToday = k === todayKey();
+                        return (
+                          <button key={d} disabled={isSource} onClick={() => toggleTarget(k)}
+                            style={{ aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderRadius: 5,
+                              cursor: isSource ? 'not-allowed' : 'pointer', position: 'relative',
+                              background: isSource ? 'var(--surface2)' : isPicked ? 'var(--accent)' : isToday ? 'var(--bg)' : 'transparent',
+                              border: `1px solid ${isPicked ? 'var(--accent)' : isToday ? 'var(--accent-dim)' : 'transparent'}`,
+                              color: isPicked ? '#fff' : isSource ? 'var(--text3)' : 'var(--text)',
+                              fontSize: 11, fontFamily: 'var(--mono)', fontWeight: isToday || isPicked ? 700 : 400,
+                              opacity: isSource ? 0.5 : 1, transition: 'background 0.12s' }}>
+                            {d}
+                            {hasLog && !isPicked && !isSource && (
+                              <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--amber)', marginTop: 1 }} />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 10, color: 'var(--text3)', fontFamily: 'var(--mono)', display: 'flex', gap: 12 }}>
+                    <span><span style={{ display: 'inline-block', width: 8, height: 8, background: 'var(--accent)', borderRadius: 2, verticalAlign: 'middle', marginRight: 4 }} />picked</span>
+                    <span><span style={{ display: 'inline-block', width: 4, height: 4, background: 'var(--amber)', borderRadius: '50%', verticalAlign: 'middle', marginRight: 4 }} />has meals</span>
+                    <span style={{ marginLeft: 'auto' }}>source day disabled</span>
+                  </div>
+                </div>
+              )}
+
+              {applyMode === 'range' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>From</label>
+                      <input type="date" value={rangeStart} onChange={e => setRangeStart(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--mono)', outline: 'none', background: 'var(--bg)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>To</label>
+                      <input type="date" value={rangeEnd} onChange={e => setRangeEnd(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--mono)', outline: 'none', background: 'var(--bg)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  {/* Quick range presets */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Next 3 days', s: 1, e: 3 },
+                      { label: 'Next 7 days', s: 1, e: 7 },
+                      { label: 'Next 14 days', s: 1, e: 14 },
+                      { label: 'Past 7 days', s: -7, e: -1 },
+                    ].map(({ label, s, e }) => (
+                      <button key={label} onClick={() => {
+                        const a = new Date(sourceDate); a.setDate(a.getDate() + s);
+                        const b = new Date(sourceDate); b.setDate(b.getDate() + e);
+                        setRangeStart(localDateKey(a));
+                        setRangeEnd(localDateKey(b));
+                      }}
+                        style={{ padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, fontFamily: 'var(--mono)',
+                          border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text2)', cursor: 'pointer' }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Weekdays</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {['S','M','T','W','T','F','S'].map((lbl, i) => {
+                        const active = rangeWeekdays.includes(i);
+                        return (
+                          <button key={i} onClick={() => setRangeWeekdays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                            style={{ flex: 1, padding: '6px 0', borderRadius: 5, fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)',
+                              border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                              background: active ? 'var(--accent-bg)' : 'var(--bg)',
+                              color: active ? 'var(--accent)' : 'var(--text3)', cursor: 'pointer' }}>
+                            {lbl}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                      <button onClick={() => setRangeWeekdays([0,1,2,3,4,5,6])} style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--text3)', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'var(--mono)' }}>All</button>
+                      <button onClick={() => setRangeWeekdays([1,2,3,4,5])} style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--text3)', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'var(--mono)' }}>Weekdays only</button>
+                      <button onClick={() => setRangeWeekdays([0,6])} style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--text3)', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'var(--mono)' }}>Weekends only</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Conflict handling */}
+              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>If target day has meals</div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[['add', 'Add on top'], ['replace', 'Replace'], ['skip', 'Skip']].map(([k, label]) => (
+                    <button key={k} onClick={() => setOverwriteMode(k)}
+                      style={{ flex: 1, padding: '6px 8px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                        border: `1px solid ${overwriteMode === k ? 'var(--accent)' : 'var(--border)'}`,
+                        background: overwriteMode === k ? 'var(--accent-bg)' : 'var(--bg)',
+                        color: overwriteMode === k ? 'var(--accent)' : 'var(--text2)', cursor: 'pointer' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {conflictCount > 0 && (
+                  <div style={{ fontSize: 11, color: overwriteMode === 'replace' ? 'var(--red)' : 'var(--amber)',
+                    background: overwriteMode === 'replace' ? 'var(--red-bg, var(--amber-bg))' : 'var(--amber-bg)',
+                    padding: '8px 10px', borderRadius: 6, marginTop: 8 }}>
+                    {conflictCount} target day{conflictCount === 1 ? '' : 's'} already {conflictCount === 1 ? 'has' : 'have'} meals — {overwriteMode === 'add' ? 'copied meals will be added on top' : overwriteMode === 'replace' ? 'existing meals will be overwritten' : 'these days will be skipped'}.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Summary footer */}
+            <div style={{ padding: '12px 18px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'var(--mono)', minWidth: 0 }}>
+                {targetCount === 0
+                  ? <span style={{ color: 'var(--text3)' }}>No target days selected</span>
+                  : <><b style={{ color: 'var(--text)' }}>{targetCount}</b> day{targetCount === 1 ? '' : 's'} · {targetCount <= 3
+                      ? resolvedTargets.filter(k => k !== sourceKey).join(', ')
+                      : `${resolvedTargets.filter(k => k !== sourceKey)[0]} … ${resolvedTargets.filter(k => k !== sourceKey).slice(-1)[0]}`}</>}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {applyMode === 'pick' && applyTargets.length > 0 && (
+                  <button onClick={() => setApplyTargets([])} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 12px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>Clear</button>
+                )}
+                <button onClick={() => setApplyOpen(false)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 14px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>Cancel</button>
+                <button onClick={applyToDays} disabled={targetCount === 0}
+                  style={{ background: targetCount === 0 ? 'var(--text3)' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 16px', fontSize: 12, fontWeight: 600,
+                    cursor: targetCount === 0 ? 'not-allowed' : 'pointer', opacity: targetCount === 0 ? 0.6 : 1 }}>
+                  Copy to {targetCount || 0} day{targetCount === 1 ? '' : 's'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Goals ────────────────────────────────────────────────────────────────────
+function Goals({ goals, setGoals }) {
+  const [draft, setDraft] = useState({ ...goals });
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    setGoals(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  const fields = [
+    { key: 'cal', label: 'Calories',         unit: 'kcal', hint: 'Total daily energy target' },
+    { key: 'p',   label: 'Protein',          unit: 'g',    hint: 'Muscle building & satiety' },
+    { key: 'c',   label: 'Carbohydrates',    unit: 'g',    hint: 'Primary energy source' },
+    { key: 'f',   label: 'Dietary Fiber',    unit: 'g',    hint: 'Digestive health' },
+    { key: 's',   label: 'Sugars',           unit: 'g',    hint: 'Maximum daily sugar intake' },
+    { key: 'fat', label: 'Fat',              unit: 'g',    hint: 'Healthy fats target' },
+  ];
+
+  const calFromMacros = draft.p * 4 + draft.c * 4 + draft.fat * 9;
+
+  return (
+    <div className="page" style={{ padding: '28px 32px', maxWidth: 600, margin: '0 auto' }}>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1 }}>Configuration</div>
+        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>Daily Goals</div>
+      </div>
+
+      <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)', marginBottom: 16 }}>
+        {fields.map((f, i) => (
+          <div key={f.key} style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 16, padding: '16px 20px', borderBottom: i < fields.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 500, fontSize: 14 }}>{f.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{f.hint}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number" value={draft[f.key]}
+                onChange={e => setDraft(d => ({ ...d, [f.key]: parseFloat(e.target.value) || 0 }))}
+                style={{ width: 100, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--mono)', fontSize: 14, fontWeight: 600, textAlign: 'right', outline: 'none', background: 'var(--bg)' }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' }}>{f.unit}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Macro-to-calorie check */}
+      <div style={{ background: calFromMacros > draft.cal * 1.05 || calFromMacros < draft.cal * 0.95 ? 'var(--amber-bg)' : 'var(--accent-bg)', borderRadius: 8, padding: '12px 16px', fontSize: 12, marginBottom: 20, border: `1px solid ${calFromMacros > draft.cal * 1.05 || calFromMacros < draft.cal * 0.95 ? 'var(--amber)' : 'var(--accent-dim)'}` }}>
+        <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{r1(calFromMacros)} kcal</span>
+        <span style={{ color: 'var(--text2)' }}> estimated from macros (P×4 + C×4 + Fat×9) vs goal of </span>
+        <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{draft.cal} kcal</span>
+        {Math.abs(calFromMacros - draft.cal) > draft.cal * 0.05 && (
+          <span style={{ color: 'var(--amber)', marginLeft: 4 }}>— consider adjusting</span>
+        )}
+      </div>
+
+      <button onClick={save} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '11px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+        {saved ? '✓ Saved' : 'Save Goals'}
+      </button>
+    </div>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function Sidebar({ active, setActive, totals, goals }) {
+  const calPct = goals.cal > 0 ? Math.min(100, totals.cal / goals.cal * 100) : 0;
+  const over = totals.cal > goals.cal;
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard',     icon: '◈' },
+    { id: 'food',      label: 'Food Database', icon: '⊟' },
+    { id: 'history',   label: 'History',       icon: '◫' },
+    { id: 'goals',     label: 'Goals',         icon: '◎' },
+  ];
+
+  return (
+    <div className="sidebar" style={{ width: 220, background: 'var(--surface)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0, height: '100vh', position: 'sticky', top: 0 }}>
+      {/* Logo */}
+      <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 13, letterSpacing: -0.3, color: 'var(--text)' }}>MACRO<span style={{ color: 'var(--accent)' }}>LOG</span></div>
+        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, fontFamily: 'var(--mono)' }}>Bulk diet tracker</div>
+      </div>
+
+      {/* Today's calorie pill */}
+      <div style={{ margin: '14px 16px', background: over ? 'var(--red-bg)' : 'var(--accent-bg)', borderRadius: 8, padding: '10px 14px', border: `1px solid ${over ? 'var(--red)' : 'var(--accent-dim)'}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text3)', textTransform: 'uppercase' }}>Today</span>
+          <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: over ? 'var(--red)' : 'var(--accent)', fontWeight: 600 }}>{Math.round(calPct)}%</span>
+        </div>
+        <MiniBar value={totals.cal} target={goals.cal} height={5} />
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, marginTop: 6, color: 'var(--text2)' }}>
+          {r1(totals.cal)} <span style={{ color: 'var(--text3)' }}>/ {goals.cal} kcal</span>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="sidebar-nav" style={{ padding: '4px 10px', flex: 1 }}>
+        {navItems.map(item => (
+          <button key={item.id} onClick={() => setActive(item.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', textAlign: 'left', marginBottom: 2,
+              background: active === item.id ? 'var(--accent-bg)' : 'transparent',
+              color: active === item.id ? 'var(--accent)' : 'var(--text2)',
+              fontWeight: active === item.id ? 600 : 400, fontSize: 13 }}>
+            <span style={{ fontSize: 14, width: 16, textAlign: 'center' }}>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Quick macro summary */}
+      <div className="sidebar-macros" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+        {[{k:'p',l:'Protein'},{k:'c',l:'Carbs'},{k:'fat',l:'Fat'}].map(({ k, l }) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--text3)' }}>{l}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text2)' }}>{r1(totals[k])}g <span style={{ color: 'var(--text3)' }}>/{goals[k]}g</span></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── App Root ─────────────────────────────────────────────────────────────────
+function App() {
+  const [active, setActive] = useState('dashboard');
+  const [log, setLog] = useLS('macrolog_v1', {});
+  const [goals, setGoals] = useLS('macrogoals_v1', DEFAULT_GOALS);
+  const [foodDB, setFoodDB] = useLS('macrofooddb_v1', FOOD_DB);
+  const [recipesRaw, setRecipes] = useLS('macrorecipes_v1', RECIPES);
+  // Meal totals are derived live from the ingredient database, so an ingredient
+  // correction propagates into every meal that references it.
+  const recipes = useMemo(() => recipesRaw.map(r =>
+    Array.isArray(r.lineItems) && r.lineItems.length ? { ...r, ...sumLineItems(r.lineItems, foodDB) } : r
+  ), [recipesRaw, foodDB]);
+  const [stocked, setStocked] = useLS('macrostocked_v1', []);
+  const { useTweaks, TweaksPanel, TweakSection, TweakColor, TweakToggle } = window;
+
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "accentColor": "#00895a",
+    "monoFont": true,
+    "compactNumbers": false
+  }/*EDITMODE-END*/;
+
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', tweaks.accentColor);
+  }, [tweaks.accentColor]);
+
+  const todayMeals = log[todayKey()] || [];
+  const totals = sumMeals(todayMeals);
+
+  return (
+    <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <Sidebar active={active} setActive={setActive} totals={totals} goals={goals} />
+      <main className="app-main" style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+        {active === 'dashboard' && <Dashboard log={log} goals={goals} setLog={setLog} foodDB={foodDB} recipes={recipes} stocked={stocked} setStocked={setStocked} />}
+        {active === 'food'      && <FoodDatabase foodDB={foodDB} setFoodDB={setFoodDB} recipes={recipes} setRecipes={setRecipes} />}
+        {active === 'history'   && <History log={log} goals={goals} setLog={setLog} />}
+        {active === 'goals'     && <Goals goals={goals} setGoals={setGoals} />}
+      </main>
+      <TweaksPanel>
+        <TweakSection label="Appearance">
+          <TweakColor id="accentColor" label="Accent Color" tweaks={tweaks} setTweak={setTweak} />
+          <TweakToggle id="monoFont" label="Monospace numbers" tweaks={tweaks} setTweak={setTweak} />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
