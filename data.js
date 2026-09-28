@@ -79,7 +79,12 @@ const FOOD_DB = [
   { id: "sunflower_oil",    name: "Sunflower Oil",                portion: "100 g",         cal: 884,   p: 0,    c: 0,    f: 0,    s: 0,    fat: 100  },
   // USDA FoodData Central, rainbow trout, raw.
   { id: "trout",            name: "Trout (rainbow, raw)",         portion: "100 g",         cal: 119,   p: 20.5, c: 0,    f: 0,    s: 0,    fat: 3.5  },
+  { id: "rice_cakes",       name: "Rice Cakes",                   portion: "2 pcs (19 g)",  cal: 70,    p: 2,    c: 15,   f: 0,    s: 0,    fat: 1    },
 ];
+
+// Seed foods and recipes only fill in IDs that are missing from storage; a
+// stored item with the same ID always wins. Editing a seed here does not
+// change data a user already has — see CLAUDE.md.
 
 // Ingredients whose sugar is added/processed rather than whole-food. Used only
 // by the sugar status rule; the standard meal plan contains none of these.
@@ -205,6 +210,25 @@ const RECIPES = [
       li('rudolphs_bread', "Rudolph's Bread", '2 slices', 1),
     ],
     cal: 478.3, p: 37.7, c: 42.3, f: 3.43, s: 8.6, fat: 17.72 },
+  { id: "chicken_wrap", name: "Chicken Wrap", portion: "1 wrap",
+    lineItems: [
+      li('chicken_breast', 'Chicken Breast (raw, b/s)', '100 g', 85),
+      li('lavash', 'Lavash (thin flatbread)', '100 g', 60),
+      li('mozzarella', 'Mozzarella Cheese', '64 g', 28),
+      li('red_onions', 'Red Onions', '20 g', 20),
+      li('cream_cheese', 'Cream Cheese', '2 tbsp', 0.5),
+    ],
+    cal: 406.7, p: 39.8, c: 39.6, f: 2.9, s: 0.3, fat: 10.5 },
+  { id: "chicken_veggie_wrap", name: "Chicken Veggie Wrap", portion: "1 wrap",
+    lineItems: [
+      li('chicken_breast', 'Chicken Breast (raw, b/s)', '100 g', 85),
+      li('lavash', 'Lavash (thin flatbread)', '100 g', 60),
+      li('bell_peppers', 'Red Peppers', '100 g', 50),
+      li('bell_peppers', 'Green Peppers', '100 g', 50),
+      li('red_onions', 'Red Onions', '20 g', 20),
+      li('greek_yogurt_0', 'Greek Yogurt 0%', '175 g', 30),
+    ],
+    cal: 365, p: 35.8, c: 45.4, f: 5, s: 5.1, fat: 4.1 },
   { id: "daily_supplements", name: "Daily Supplements — Psyllium + Creatine", portion: "1 day",
     lineItems: [
       li('psyllium_serving', 'Psyllium Husk (10 g serving)', '1 serving', 1),
