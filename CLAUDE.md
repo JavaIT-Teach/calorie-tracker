@@ -34,6 +34,14 @@ change:
 Code that writes to `localStorage` outside a user action is a bug. Exception:
 the load sequence in `index.html` (`protectAndUpgradeData`).
 
+5. **Never overwrite data that failed to read.** App code reads and writes
+   storage only through `StorageGuard.read(key, def)` and
+   `StorageGuard.write(key, value)` (in `index.html`). A key that can't be
+   read (invalid JSON or blocked storage) is left untouched and its writes are
+   paused until a reload reads it correctly. A failed save is reported, never
+   thrown or swallowed. Both show `StorageBanner`. Don't call
+   `localStorage.setItem` directly from app code.
+
 ## Storage keys
 
 | Key | Contents |

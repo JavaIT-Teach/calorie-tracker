@@ -7,14 +7,11 @@ const _glState = React;
 const _glUseState = _glState.useState;
 const _glUseMemo = _glState.useMemo;
 
-// Persistent storage helpers (self-contained — survive close/reopen + reload)
-function _glLoad(key, def) {
-  try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
-  catch (e) { return def; }
-}
-function _glSave(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {}
-}
+// Persistent storage helpers (survive close/reopen + reload). They go through
+// StorageGuard (index.html): an unreadable key is never written back, and a
+// failed save shows the app's warning banner instead of being swallowed.
+function _glLoad(key, def) { return StorageGuard.read(key, def); }
+function _glSave(key, val) { StorageGuard.write(key, val); }
 
 // Category mapping by foodId. Anything not in the map falls into "other".
 const GROCERY_CATEGORIES = {

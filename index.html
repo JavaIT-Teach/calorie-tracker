@@ -13,6 +13,49 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 <script src="data.js"></script>
 <script>
+// ─── StorageGuard: every app read/write of localStorage goes through here ────
+// A key that fails to read (invalid JSON or blocked storage) is marked
+// unreadable: its raw value is left untouched and every write to it is refused
+// for the rest of the page session, so state built from a fallback can never
+// overwrite the real data. Reload after the value is fixed. A failed write
+// (e.g. storage full) is recorded instead of thrown. The app shows a banner
+// for both (StorageBanner).
+window.StorageGuard = (function () {
+  const unreadable = new Set();
+  const saveErrors = new Map();
+  const listeners = new Set();
+  // Deferred so a read during a component's render never updates another
+  // component mid-render.
+  const notify = () => setTimeout(() => listeners.forEach(fn => fn()), 0);
+
+  function read(key, def) {
+    let raw;
+    try { raw = localStorage.getItem(key); }
+    catch (e) { unreadable.add(key); notify(); console.warn(`Storage blocked; ${key} not read`, e); return def; }
+    if (raw == null) return def;
+    try { return JSON.parse(raw); }
+    catch (e) { unreadable.add(key); notify(); console.warn(`${key} holds invalid JSON; left untouched`, e); return def; }
+  }
+
+  function write(key, value) {
+    if (unreadable.has(key)) return false; // paused: never overwrite data we failed to read
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+      if (saveErrors.delete(key)) notify();
+      return true;
+    } catch (e) {
+      saveErrors.set(key, e && e.message || String(e));
+      notify();
+      console.warn(`Saving ${key} failed`, e);
+      return false;
+    }
+  }
+
+  function status() { return { unreadable: [...unreadable], saveErrors: [...saveErrors.keys()] }; }
+  function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+  return { read, write, status, subscribe };
+})();
+
 // ─── Data safety: backup → seed fill → migrations ─────────────────────────────
 // Data saved from the app is the source of truth; a code deploy must never
 // overwrite it (rules in CLAUDE.md). On every load, if there is pending work:
@@ -52,6 +95,14 @@
   const pendingSeeds = SEED_STORES.some(s => s.seeds.some(x => !(seeded[s.field] || []).includes(x.id)));
   const pendingMigrations = MIGRATIONS.filter(m => localStorage.getItem(m.id) !== 'done');
   if (!pendingSeeds && pendingMigrations.length === 0) return;
+
+  // Unreadable data: keep the last good backup and change nothing this load.
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k.startsWith('macro') || k === BACKUP_KEY) continue;
+    try { JSON.parse(localStorage.getItem(k)); }
+    catch (e) { console.warn(`${k} is unreadable; skipping backup, seed fill and migrations`); return; }
+  }
 
   // 1. Backup
   try {
@@ -216,19 +267,51 @@
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
+// Reads and writes go through StorageGuard: an unreadable key falls back to
+// `def` in memory only and is never written back; a failed save shows a banner.
 function useLS(key, def) {
-  const [val, setVal] = useState(() => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
-    catch { return def; }
-  });
+  const [val, setVal] = useState(() => StorageGuard.read(key, def));
   const set = useCallback(v => {
     setVal(prev => {
       const next = typeof v === 'function' ? v(prev) : v;
-      localStorage.setItem(key, JSON.stringify(next));
+      StorageGuard.write(key, next);
       return next;
     });
   }, [key]);
   return [val, set];
+}
+
+// ─── StorageBanner ────────────────────────────────────────────────────────────
+const STORAGE_LABELS = {
+  macrolog_v1: 'Meal log', macrogoals_v1: 'Goals', macrofooddb_v1: 'Foods',
+  macrorecipes_v1: 'Recipes', macrostocked_v1: 'Stock marks',
+  macrogrocery_checked_v1: 'Grocery check-offs', macrogrocery_custom_v1: 'Custom grocery items',
+};
+function StorageBanner() {
+  const [st, setSt] = useState(() => StorageGuard.status());
+  useEffect(() => {
+    setSt(StorageGuard.status()); // catch anything recorded before subscribing
+    return StorageGuard.subscribe(() => setSt(StorageGuard.status()));
+  }, []);
+  const label = keys => keys.map(k => STORAGE_LABELS[k] || k).join(', ');
+  const bar = (bg, border, color) => ({ background: bg, borderBottom: `1px solid ${border}`, color, padding: '10px 16px', fontSize: 13, lineHeight: 1.4 });
+  if (!st.unreadable.length && !st.saveErrors.length) return null;
+  return (
+    <div role="alert" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 5000, boxShadow: 'var(--shadow)' }}>
+      {st.unreadable.length > 0 && (
+        <div style={bar('var(--red-bg)', 'var(--red)', 'var(--red)')}>
+          <b>Couldn't read saved data, changes are paused to protect it.</b>
+          <span style={{ color: 'var(--text2)' }}> Affected: {label(st.unreadable)}. Edits to these are not saved; the stored copy is left untouched.</span>
+        </div>
+      )}
+      {st.saveErrors.length > 0 && (
+        <div style={bar('var(--amber-bg)', 'var(--amber)', 'var(--amber)')}>
+          <b>Couldn't save your changes.</b>
+          <span style={{ color: 'var(--text2)' }}> Affected: {label(st.saveErrors)}. Storage may be full; recent edits will be lost on reload.</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Meal time slots ─────────────────────────────────────────────────────────
@@ -1392,6 +1475,7 @@ function App() {
 
   return (
     <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <StorageBanner />
       <Sidebar active={active} setActive={setActive} totals={totals} goals={goals} />
       <main className="app-main" style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
         {active === 'dashboard' && <Dashboard log={log} goals={goals} setLog={setLog} foodDB={foodDB} recipes={recipes} stocked={stocked} setStocked={setStocked} />}
