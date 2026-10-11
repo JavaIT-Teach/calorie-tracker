@@ -24,23 +24,10 @@ const MACRO_FIELDS = [
   { key: 'fat', label: 'Fat',      unit: 'g',    color: '#6b6b63' },
 ];
 
+// Same calculation the rest of the app uses (sumLineItems in data.js), so the
+// Food Database screen can never show different totals from the log.
 function macroSum(items, foodDB) {
-  const z = { cal: 0, p: 0, c: 0, f: 0, s: 0, fat: 0 };
-  items.forEach(({ foodId, mult, enteredQty, foodPortion }) => {
-    const food = foodDB.find(f => f.id === foodId);
-    if (!food) return;
-    // use enteredQty/baseQty if available, else fall back to mult
-    const effectiveMult = (enteredQty !== undefined && foodPortion)
-      ? (enteredQty / (parsePortion(foodPortion).baseQty || 1))
-      : (mult || 1);
-    z.cal += (food.cal || 0) * effectiveMult;
-    z.p   += (food.p   || 0) * effectiveMult;
-    z.c   += (food.c   || 0) * effectiveMult;
-    z.f   += (food.f   || 0) * effectiveMult;
-    z.s   += (food.s   || 0) * effectiveMult;
-    z.fat += (food.fat || 0) * effectiveMult;
-  });
-  return z;
+  return sumLineItems(items, foodDB);
 }
 
 // ─── Modal Shell ─────────────────────────────────────────────────────────────

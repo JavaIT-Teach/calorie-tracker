@@ -377,13 +377,28 @@ function processedSugarTotal(meals, foodDB) {
   return total;
 }
 
-// Live meal totals from an ingredient list.
+// "100 g" → { qty: 100, unit: "g" }; "2 pcs (19 g)" → { qty: 2, unit: "pcs" }.
+function splitPortion(portion) {
+  const m = String(portion || '').match(/^([\d.]+)\s*(.+?)(\s*\(.*\))?$/);
+  return m ? { qty: parseFloat(m[1]) || 1, unit: m[2].trim().toLowerCase() }
+           : { qty: 1, unit: String(portion || '').trim().toLowerCase() };
+}
+
+// Live meal totals from an ingredient list. One implementation for the whole
+// app (FoodDatabase.jsx delegates here).
 function sumLineItems(lineItems, foodDB) {
   const z = { cal: 0, p: 0, c: 0, f: 0, s: 0, fat: 0 };
   (lineItems || []).forEach(l => {
     const food = (foodDB || []).find(f => f.id === l.foodId);
     if (!food) return;
-    const base = parseFloat(String(l.foodPortion || food.portion || '1').match(/[\d.]+/)?.[0]) || 1;
+    // A food's macros are per its *current* portion, so that is the base
+    // whenever the line is measured in the same unit. A line keeps the portion
+    // it was added with, which goes stale if the food is later re-entered on a
+    // new basis (e.g. per 50 g instead of per 100 g). Different units can't be
+    // converted, so then the recorded portion is the only basis available.
+    const now = splitPortion(food.portion);
+    const then = splitPortion(l.foodPortion || food.portion);
+    const base = then.unit === now.unit ? now.qty : then.qty;
     const m = l.enteredQty !== undefined && l.enteredQty !== null ? l.enteredQty / base : (l.mult || 1);
     z.cal += (food.cal || 0) * m; z.p += (food.p || 0) * m; z.c += (food.c || 0) * m;
     z.f += (food.f || 0) * m;     z.s += (food.s || 0) * m; z.fat += (food.fat || 0) * m;

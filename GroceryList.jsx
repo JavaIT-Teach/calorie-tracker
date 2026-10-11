@@ -56,7 +56,8 @@ function _glParsePortion(p) {
 
 // Expand one logged item into one or more concrete ingredient quantities.
 function expandLogItem(item, foodDB) {
-  const itemMult = item.qty_mult || 1;
+  // Same rule as sumMeals: a missing multiplier means 1, but a logged 0 stays 0.
+  const itemMult = item.qty_mult !== undefined ? item.qty_mult : 1;
   // Recipe with line items → expand
   if (Array.isArray(item.lineItems) && item.lineItems.length) {
     return item.lineItems
@@ -64,7 +65,8 @@ function expandLogItem(item, foodDB) {
       .map(li => {
         const food = foodDB.find(f => f.id === li.foodId);
         const parsed = _glParsePortion(li.foodPortion || food?.portion || '');
-        const qty = (li.enteredQty != null ? li.enteredQty : parsed.baseQty) * itemMult;
+        const lineQty = li.enteredQty != null ? li.enteredQty : parsed.baseQty * (li.mult != null ? li.mult : 1);
+        const qty = lineQty * itemMult;
         return {
           foodId: li.foodId,
           foodName: li.foodName || food?.name || li.foodId,
@@ -84,12 +86,15 @@ function expandLogItem(item, foodDB) {
       unit: parsed.unit,
     }];
   }
-  // Unknown — keep the qty string as-is so it isn't silently dropped
+  // Not linked to the food database (recipe without ingredients, diet-plan
+  // item, deleted food): keep it on the list and still scale it by the logged
+  // amount and the number of days, e.g. "Tomato Egg Dish — 6 portion".
+  const parsed = _glParsePortion(item.portion || item.qty || '');
   return [{
     foodId: null,
     foodName: item.name,
-    qty: 0,
-    unit: item.qty || '',
+    qty: parsed.baseQty * itemMult,
+    unit: parsed.unit,
     unknown: true,
   }];
 }
@@ -99,7 +104,9 @@ function aggregateIngredients(meals, foodDB, multiplier) {
   meals.forEach(meal => {
     (meal.items || []).forEach(item => {
       expandLogItem(item, foodDB).forEach(ing => {
-        const key = ing.foodId || `__${ing.foodName}`;
+        // Keyed by unit too: amounts in different units are listed separately
+        // instead of being added together.
+        const key = `${ing.foodId || '__' + ing.foodName}|${ing.unit}`;
         if (!buckets[key]) {
           buckets[key] = {
             foodId: ing.foodId,
@@ -203,7 +210,7 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
       const items = (grouped[cat] || []).filter(i => !stocked.includes(i.foodId));
       if (!items.length) return;
       lines.push('', CATEGORY_LABELS[cat].toUpperCase());
-      items.forEach(i => lines.push(`  • ${i.foodName} — ${i.unknown ? i.unit : formatQty(i.qty, i.unit)}`));
+      items.forEach(i => lines.push(`  • ${i.foodName} — ${formatQty(i.qty, i.unit)}`));
     });
     if (custom.length) {
       lines.push('', 'CUSTOM ITEMS');
@@ -294,7 +301,7 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
     if (custom && custom.length) {
       sections.push({
         cat: 'custom', label: 'Custom items',
-        items: custom.map(c => ({ foodName: c.name, unit: c.qty, unknown: true, foodId: null })),
+        items: custom.map(c => ({ foodName: c.name, rawQty: c.qty || '', foodId: null })),
       });
     }
 
@@ -310,7 +317,7 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
                 <label>
                   <input type="checkbox" data-key="gen__${esc(s.cat)}__${esc((i.foodId || i.foodName) + '_' + idx)}" />
                   <span class="name">${esc(i.foodName)}</span>
-                  <span class="qty">${esc(i.unknown ? i.unit : formatQty(i.qty, i.unit))}</span>
+                  <span class="qty">${esc(i.rawQty != null ? i.rawQty : formatQty(i.qty, i.unit))}</span>
                 </label>
               </li>`).join('')}
           </ul>
@@ -775,7 +782,7 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 12 }}>
             <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase',
               letterSpacing: 0.5, marginRight: 4 }}>Days</span>
-            {[3, 5, 7, 14].map(n => {
+            {[3, 5, 6, 7, 14].map(n => {
               const active = days === n;
               return (
                 <button key={n} onClick={() => setDays(n)}
@@ -826,10 +833,10 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
                     const isStocked = stocked.includes(ing.foodId);
                     const itemKey = 'gen_' + (ing.foodId || ing.foodName);
                     return renderRow({
-                      rowKey: itemKey,
+                      rowKey: itemKey + '|' + ing.unit,
                       itemKey: itemKey,
                       name: ing.foodName,
-                      qty: ing.unknown ? ing.unit : formatQty(ing.qty, ing.unit),
+                      qty: formatQty(ing.qty, ing.unit),
                       badge: ing.unknown ? 'not in DB' : null,
                       isStocked: isStocked,
                       dim: isStocked,

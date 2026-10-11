@@ -812,7 +812,7 @@ function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked })
               </div>
               {/* Foods (draggable) or empty drop hint */}
               {meal ? meal.items.map((item, ii) => {
-                const mult = item.qty_mult || 1;
+                const mult = item.qty_mult !== undefined ? item.qty_mult : 1;
                 const itemDragging = draggedItem && draggedItem.time === entry.time && draggedItem.idx === ii;
                 return (
                   <div key={ii}
@@ -1068,7 +1068,7 @@ function History({ log, goals, setLog }) {
                     <div key={mi} style={{ borderBottom: '1px solid var(--border)' }}>
                       <div style={{ padding: '8px 16px', background: 'var(--surface2)', fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>{formatSlot(meal.time)}</div>
                       {meal.items.map((item, ii) => {
-                        const mult = item.qty_mult || 1;
+                        const mult = item.qty_mult !== undefined ? item.qty_mult : 1;
                         return (
                           <div key={ii} style={{ padding: '7px 16px 7px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: ii < meal.items.length - 1 ? '1px solid var(--border)' : 'none' }}>
                             <div>
@@ -1224,6 +1224,7 @@ function History({ log, goals, setLog }) {
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {[
                       { label: 'Next 3 days', s: 1, e: 3 },
+                      { label: 'Next 6 days', s: 1, e: 6 },
                       { label: 'Next 7 days', s: 1, e: 7 },
                       { label: 'Next 14 days', s: 1, e: 14 },
                       { label: 'Past 7 days', s: -7, e: -1 },
