@@ -123,10 +123,12 @@ function aggregateIngredients(meals, foodDB, multiplier) {
   return Object.values(buckets);
 }
 
+// Exact amounts, no rounding to whole grams or tenths (owner's choice). Only
+// floating-point noise is trimmed (0.1 + 0.2 → 0.3, not 0.30000000000000004).
 function formatQty(qty, unit) {
   if (!qty) return '—';
-  const rounded = qty >= 100 ? Math.round(qty) : Math.round(qty * 10) / 10;
-  return `${rounded}${unit ? ' ' + unit : ''}`;
+  const exact = parseFloat(qty.toPrecision(12));
+  return `${exact}${unit ? ' ' + unit : ''}`;
 }
 
 function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
