@@ -17,7 +17,7 @@ function _glSave(key, val) { StorageGuard.write(key, val); }
 const GROCERY_CATEGORIES = {
   // Proteins
   chicken_breast: 'proteins', chicken_thighs: 'proteins', shrimp: 'proteins',
-  salmon: 'proteins', ground_beef: 'proteins', kirkland_ham: 'proteins',
+  salmon: 'proteins', ground_beef: 'proteins', ground_beef_80_20: 'proteins', kirkland_ham: 'proteins',
   whey_protein: 'proteins', gainer: 'proteins',
   boiled_egg: 'proteins', eggs: 'proteins', egg_white: 'proteins',
   // Dairy

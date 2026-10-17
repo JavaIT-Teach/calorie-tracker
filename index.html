@@ -77,7 +77,77 @@ window.StorageGuard = (function () {
   // add missing items or fix broken fields — never replace a value the user
   // could have edited. It must be idempotent: a failed run is retried on the
   // next load. Never reuse or rename an id; bump the version for a new one.
-  const MIGRATIONS = [];
+  const MIGRATIONS = [
+    // Beef lunches + matching Julien wraps (owner request, 2026-10-17).
+    // Add-only: clones the user's *stored* recipes so their stored ingredient
+    // values and amounts are used; only the protein/mushroom lines differ.
+    // Never edits or removes an existing food or recipe; skips anything whose
+    // source is missing or whose new ID or name already exists.
+    { id: 'migration_beef_lunch_wraps_v1', run() {
+      const foods = readJSON('macrofooddb_v1', []);
+      const recipes = readJSON('macrorecipes_v1', []);
+      if (!Array.isArray(foods) || !Array.isArray(recipes)) throw new Error('food or recipe store is not a list');
+      const newLineId = foodId => foodId + '_' + Math.random().toString(36).slice(2, 8);
+      const has = (list, id, name) => list.some(x => x.id === id || (name && String(x.name).trim() === name));
+
+      // 1. Ground Beef 80/20 (raw): reuse an existing 80/20 beef entry, else add it.
+      let beef = foods.find(f => f.id === 'ground_beef_80_20' || (/beef/i.test(f.name) && /80\s*\/\s*20/.test(f.name)));
+      let foodsChanged = false;
+      if (!beef) {
+        beef = { id: 'ground_beef_80_20', name: 'Ground Beef 80/20 (raw)', portion: '100 g', cal: 254, p: 17.2, c: 0, f: 0, s: 0, fat: 20 };
+        foods.push(beef);
+        foodsChanged = true;
+      }
+
+      const gramsLine = (food, grams, prev) => ({
+        id: newLineId(food.id), foodId: food.id, foodName: prev ? prev.foodName : food.name,
+        foodPortion: food.portion, enteredQty: grams, unit: 'g', mult: grams / splitPortion(food.portion).qty,
+      });
+      const lineFor = (items, foodId, name) => {
+        const hits = items.filter(l => l.foodId === foodId || l.foodName === name);
+        return hits.length === 1 ? hits[0] : null;
+      };
+      const added = [];
+      // Clone src, swapping the given lines; everything else keeps its exact amount.
+      function cloneRecipe(src, id, name, swaps) {
+        if (!src || !Array.isArray(src.lineItems)) return console.warn(`Source for "${name}" not found; skipped`);
+        if (has(recipes, id, name)) return; // already there: never overwrite
+        const targets = swaps.map(s => ({ ...s, line: lineFor(src.lineItems, s.foodId, s.name) }));
+        if (targets.some(t => !t.line)) return console.warn(`"${src.name}" has no single line for ${targets.filter(t => !t.line).map(t => t.name)}; "${name}" skipped`);
+        const lineItems = src.lineItems.map(l => {
+          const t = targets.find(t => t.line === l);
+          if (!t) return { ...l, id: newLineId(l.foodId) };
+          const food = foods.find(f => f.id === (t.toFood || l.foodId));
+          return gramsLine(food, t.grams, t.toFood ? null : l);
+        });
+        const { id: _id, name: _name, lineItems: _li, ...rest } = src;
+        recipes.push({ ...rest, id, name, lineItems, ...sumLineItems(lineItems, foods) });
+        added.push(name);
+      }
+
+      // 2. Beef lunches: same carb and bread amounts as the thigh lunch.
+      const byIdOrName = (id, name) => recipes.find(r => r.id === id) || recipes.find(r => String(r.name).trim() === name);
+      const THIGH = { foodId: 'chicken_thighs', name: 'Chicken Thigh (bone-in, raw)', toFood: beef.id };
+      for (const [week, grams] of [['Pasta', 200], ['Potato', 235], ['Rice', 225]]) {
+        const w = week.toLowerCase();
+        cloneRecipe(byIdOrName(`lunch_${w}_week`, `Lunch — ${week} Week (thigh)`),
+          `lunch_${w}_week_beef`, `Lunch — ${week} Week (beef)`, [{ ...THIGH, grams }]);
+      }
+
+      // 3. Julien Style Wrap variants: only chicken and mushrooms change.
+      const julien = recipes.find(r => String(r.name).trim() === 'Julien Style Wrap');
+      for (const [week, chicken] of [['Pasta', 318], ['Potato', 332], ['Rice', 358]]) {
+        cloneRecipe(julien, `julien_wrap_${week.toLowerCase()}_week_beef`, `Julien Style Wrap — ${week} Week (beef lunch)`, [
+          { foodId: 'chicken_breast', name: 'Chicken Breast (raw, b/s)', grams: chicken },
+          { foodId: 'mushrooms', name: 'Mushrooms (raw, white button)', grams: 80 },
+        ]);
+      }
+
+      if (foodsChanged) localStorage.setItem('macrofooddb_v1', JSON.stringify(foods));
+      if (added.length) localStorage.setItem('macrorecipes_v1', JSON.stringify(recipes));
+      console.info('migration_beef_lunch_wraps_v1 added:', foodsChanged ? 'Ground Beef 80/20 (raw),' : '', added.join(', ') || 'no recipes');
+    } },
+  ];
 
   // Throws on unreadable JSON so callers can leave that key untouched.
   function readJSON(key, def) {
