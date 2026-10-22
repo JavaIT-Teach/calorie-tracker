@@ -918,11 +918,11 @@ function GroceryList({ meals, foodDB, stocked, setStocked, onClose, dateKey }) {
         {/* Footer */}
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)',
           background: 'var(--surface2)', display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center', gap: 12 }}>
+          alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text2)' }}>
             {totalActive} to buy{totalStocked ? ` · ${totalStocked} stocked` : ''}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {doneCount > 0 && (
               <button onClick={clearChecked}
                 style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,

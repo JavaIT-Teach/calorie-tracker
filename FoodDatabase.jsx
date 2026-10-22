@@ -312,7 +312,7 @@ function RecipeModal({ recipe, foodDB, onSave, onAddToFoodDB, onClose }) {
 }
 
 // ─── FoodDatabase screen ───────────────────────────────────────────────────────
-function FoodDatabase({ foodDB, setFoodDB, recipes, setRecipes }) {
+function FoodDatabase({ foodDB, setFoodDB, recipes, setRecipes, phone }) {
   const [tab, setTab] = _useState('ingredients');
   const [search, setSearch] = _useState('');
   const [sort, setSort] = _useState('name');
@@ -362,13 +362,13 @@ function FoodDatabase({ foodDB, setFoodDB, recipes, setRecipes }) {
         </div>
         <button onClick={() => tab === 'ingredients' ? setShowNewIngredient(true) : setShowNewRecipe(true)}
           style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          + {tab === 'ingredients' ? 'New Ingredient' : 'New Recipe'}
+          + {phone ? 'New' : tab === 'ingredients' ? 'New Ingredient' : 'New Recipe'}
         </button>
       </div>
 
       <div className="db-toolbar" style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-          style={{ flex: 1, maxWidth: 300, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--surface)' }} />
+          style={{ flex: phone ? '1 1 100%' : 1, maxWidth: phone ? 'none' : 300, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--surface)' }} />
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: 'var(--surface)' }}>
           {['ingredients', 'recipes'].map(t => (
             <button key={t} onClick={() => { setTab(t); setSearch(''); setSort('name'); }}
@@ -379,9 +379,44 @@ function FoodDatabase({ foodDB, setFoodDB, recipes, setRecipes }) {
             </button>
           ))}
         </div>
+        {phone && (
+          <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort by"
+            style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)', color: 'var(--text)' }}>
+            {[['name', 'A–Z'], ['cal', 'Most kcal'], ['p', 'Most protein'], ['c', 'Most carbs'], ['f', 'Most fiber'], ['fat', 'Most fat']].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        )}
         <span style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'var(--mono)' }}>{filtered.length} items</span>
       </div>
 
+      {phone ? (
+        // Phone: one card per item; tap to edit. No sideways scrolling.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filtered.length === 0 && <div style={{ padding: 32, textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>No items found.</div>}
+          {filtered.map(item => {
+            const macros = item.lineItems ? macroSum(item.lineItems, foodDB) : item;
+            const open = () => tab === 'ingredients' ? setEditIngredient(item) : setEditRecipe(item);
+            return (
+              <div key={item.id} className="p-card p-row" onClick={open} role="button" tabIndex={0}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 8px 12px 14px', boxShadow: 'none', cursor: 'pointer' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.3 }}>
+                    {item.name}
+                    {item.lineItems && <span style={{ fontSize: 10.5, color: 'var(--accent)', marginLeft: 6, fontFamily: 'var(--mono)' }}>{item.lineItems.length} ingr.</span>}
+                  </div>
+                  <div style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text2)', marginTop: 4 }}>
+                    <b style={{ color: 'var(--text)' }}>{r1x(macros.cal)} kcal</b> · {item.portion}
+                  </div>
+                  <div style={{ fontSize: 11.5, fontFamily: 'var(--mono)', color: 'var(--text3)', marginTop: 2 }}>
+                    P {r1x(macros.p)} · C {r1x(macros.c)} · F {r1x(macros.fat)} · fib {r1x(macros.f)} · sug {r1x(macros.s)}
+                  </div>
+                </div>
+                <button className="tap-sm" aria-label={`Delete ${item.name}`} onClick={e => { e.stopPropagation(); setConfirmDelete({ id: item.id, name: item.name, type: tab }); }}
+                  style={{ width: 40, height: 40, borderRadius: 10, border: 'none', background: 'none', color: 'var(--text3)', fontSize: 20, flexShrink: 0 }}>×</button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <div className="db-card" style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
         {/* Header */}
         <div className="db-row" style={{ display: 'grid', gridTemplateColumns: gridTemplate, gap: '0 8px', padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
@@ -429,6 +464,7 @@ function FoodDatabase({ foodDB, setFoodDB, recipes, setRecipes }) {
           })}
         </div>
       </div>
+      )}
 
       {/* Modals */}
       {showNewIngredient && <IngredientModal onSave={saveIngredient} onClose={() => setShowNewIngredient(false)} />}

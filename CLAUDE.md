@@ -74,6 +74,16 @@ GitHub copy in `sync.js` (`applyRemote`, which backs up first).
 
 Macro fields: `cal`, `p` protein, `c` carbs, `f` fiber, `s` sugar, `fat`.
 
+## Phone layout
+
+Screens ≤ 640 px render `PhoneShell` (slim top bar + bottom tabs) instead of the
+sidebar layout; `PhoneToday` replaces the desktop Dashboard there. Both use
+`useDayLog` for the day's data and actions, so add day-log logic there, not in
+one view. Other screens are shared: keep them usable at 390 px wide with no
+sideways scrolling. On phones every action must work by tapping (no
+drag-only or hover-only features), tap targets are ≥ 44 px, and inputs stay at
+16 px so iOS doesn't zoom. Check both widths after UI changes.
+
 ## Dates
 
 Date keys are local calendar dates. Use `localDateKey(d)` and `todayKey()` from

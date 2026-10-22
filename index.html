@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<!-- Opened from the iPhone home screen: full screen, no Safari bars -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Macros" />
 <title>Macro Tracker</title>
 <!-- App icon: tab, bookmarks bar, desktop shortcut and home screen -->
 <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
@@ -258,43 +263,48 @@ window.StorageGuard = (function () {
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  /* ── Mobile (≤640px). Overrides inline layout styles only; desktop untouched ── */
+  /* ── Phone (≤640px). The phone layout (PhoneShell) is rendered instead of the
+     sidebar layout; these rules tune the shared screens and sheets for touch. ── */
   @media (max-width: 640px) {
     html, body, #root { height: auto; min-height: 100%; }
-    .app-shell { flex-direction: column !important; height: auto !important; min-height: 100vh; overflow: visible !important; }
-    .app-main { overflow: visible !important; }
-    .sidebar { width: 100% !important; height: auto !important; position: static !important; border-right: none !important; border-bottom: 1px solid var(--border) !important; }
-    .sidebar-nav { display: flex !important; flex: 0 0 auto !important; flex-wrap: wrap; gap: 4px; padding: 8px 10px !important; }
-    .sidebar-nav button { width: auto !important; flex: 1 1 44% !important; justify-content: center; margin-bottom: 0 !important; white-space: nowrap; padding: 9px 8px !important; }
-    .sidebar-macros { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .sidebar-macros > div { flex-direction: column !important; align-items: flex-start !important; margin-bottom: 0 !important; gap: 1px; }
-    .page { padding: 18px 14px !important; }
-    .dash-top { grid-template-columns: 1fr !important; }
+    body { -webkit-text-size-adjust: 100%; }
+    input, select, textarea { font-size: 16px !important; } /* iOS zooms into anything smaller */
+    .page { padding: 14px 14px 8px !important; }
     .macro-row { grid-template-columns: 1fr auto auto !important; grid-template-areas: "label value rem" "bar bar bar" !important; gap: 4px 10px !important; padding: 9px 0 !important; }
     .macro-row > :nth-child(1) { grid-area: label; }
     .macro-row > :nth-child(2) { grid-area: bar; }
     .macro-row > :nth-child(3) { grid-area: value; }
     .macro-row > :nth-child(4) { grid-area: rem; }
-    .slot-head { flex-wrap: wrap !important; gap: 2px 10px; }
-    .log-item { grid-template-columns: 14px 1fr auto 26px !important; grid-template-areas: "h nm cal del" "h mc mc del" !important; gap: 2px 8px !important; }
-    .log-item > :nth-child(1) { grid-area: h; align-self: start; }
-    .log-item > :nth-child(2) { grid-area: nm; }
-    .log-item > :nth-child(3) { grid-area: mc; }
-    .log-item > :nth-child(4) { grid-area: cal; align-self: start; text-align: right; }
-    .log-item > :nth-child(5) { grid-area: del; align-self: start; }
-    .modal-wrap { padding: 10px !important; align-items: flex-end !important; }
-    .modal-box { width: 100% !important; max-width: 100% !important; max-height: 88vh !important; }
-    .slot-row { flex-wrap: wrap !important; }
-    .slot-row button { flex: 1 1 62px !important; }
+    /* sheets slide up from the bottom, full width */
+    .modal-wrap { padding: 0 !important; align-items: flex-end !important; }
+    .modal-box { width: 100% !important; max-width: 100% !important; max-height: 92dvh !important; border-radius: 16px 16px 0 0 !important; padding-bottom: env(safe-area-inset-bottom); }
+    .modal-box.add-meal { height: 100dvh !important; max-height: 100dvh !important; border-radius: 0 !important; padding-top: env(safe-area-inset-top); }
+    .slot-row { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .slot-row::-webkit-scrollbar { display: none; }
+    .slot-row button { flex: 0 0 auto !important; min-width: 62px; padding: 0 12px !important; }
     .db-toolbar { flex-wrap: wrap !important; }
-    .db-card { overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch; }
-    .db-row { min-width: 720px; }
-    .db-scroll { max-height: none !important; overflow: visible !important; }
     .recipe-totals { grid-template-columns: repeat(3, 1fr) !important; }
     .hist-grid { grid-template-columns: 1fr !important; }
     button { min-height: 44px; }
-    .log-item button, .db-row button, .tap-sm { min-height: 0; }
+    .tap-sm, .tap-sm button, .phone-tabs button { min-height: 0; }
   }
+  /* ── Phone shell ── */
+  .phone-shell { min-height: 100dvh; background: var(--bg); }
+  .phone-top { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; background: rgba(244,244,240,0.92);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
+  .phone-main { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+  .phone-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: grid; grid-template-columns: repeat(5, 1fr);
+    background: rgba(255,255,255,0.95); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+  .phone-tabs button { background: none; border: none; padding: 8px 0 7px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 10.5px; font-weight: 500; color: var(--text3); -webkit-tap-highlight-color: transparent; }
+  .phone-tabs button.on { color: var(--accent); font-weight: 600; }
+  .fab { position: fixed; right: 18px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 55; width: 58px; height: 58px; border-radius: 50%;
+    border: none; background: var(--accent); color: #fff; font-size: 30px; line-height: 1; box-shadow: 0 6px 18px rgba(0,137,90,0.35); -webkit-tap-highlight-color: transparent; }
+  .p-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+  .p-row:active { background: var(--surface2); }
+  .p-chip { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 8px 14px; font-size: 13px; color: var(--text); white-space: nowrap; }
 </style>
 <template id="__bundler_thumbnail" data-bg-color="#f4f4f0">
   <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
@@ -623,10 +633,10 @@ function MacroTable({ totals, goals, processedSugar = 0 }) {
 }
 
 // ─── AddMealModal ─────────────────────────────────────────────────────────────
-function AddMealModal({ onAdd, onClose, foodDB, recipes }) {
+function AddMealModal({ onAdd, onClose, foodDB, recipes, initialSlot }) {
   const [tab, setTab] = useState('food'); // 'food' | 'recipe' | 'plan'
   const [search, setSearch] = useState('');
-  const [time, setTime] = useState(() => nearestSlot());
+  const [time, setTime] = useState(() => initialSlot || nearestSlot());
   const [selected, setSelected] = useState(null);
   const [enteredQty, setEnteredQty] = useState(1);
   const [servings, setServings] = useState(1);
@@ -683,7 +693,7 @@ function AddMealModal({ onAdd, onClose, foodDB, recipes }) {
 
   return (
     <div className="modal-wrap" style={modalStyle} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-box" style={boxStyle}>
+      <div className="modal-box add-meal" style={boxStyle}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontWeight: 600, fontSize: 15 }}>Add to Log</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text2)', padding: '0 4px' }}>✕</button>
@@ -820,18 +830,12 @@ function AddMealModal({ onAdd, onClose, foodDB, recipes }) {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
-function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked }) {
-  const [showModal, setShowModal] = useState(false);
-  const [showGrocery, setShowGrocery] = useState(false);
-  // Foods are the only draggable units. draggedItem = { time, idx }.
-  // Time slots are a fixed, static daily timeline (MEAL_SLOTS).
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragOverTime, setDragOverTime] = useState(null);
-  const clearDrag = () => { setDraggedItem(null); setDragOverTime(null); };
+// ─── useDayLog ────────────────────────────────────────────────────────────────
+// One day's meal log and every action on it, shared by the desktop Dashboard
+// and the phone Today screen so both behave identically.
+function useDayLog(log, setLog) {
   // Which day the log is showing. Defaults to today; navigable to any past/future date.
   const [viewDate, setViewDate] = useState(() => todayKey());
-  const dateInputRef = useRef(null);
   const key = viewDate;
   const isToday = viewDate === todayKey();
   const meals = log[key] || [];
@@ -854,13 +858,6 @@ function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked })
     const sign = diff > 0 ? '+' : '−';
     return `${d.toLocaleDateString('en-CA', { weekday: 'long' })} · ${sign}${Math.abs(diff)}d`;
   }
-  function openPicker() {
-    const el = dateInputRef.current;
-    if (!el) return;
-    if (typeof el.showPicker === 'function') { try { el.showPicker(); return; } catch (e) {} }
-    el.focus(); el.click();
-  }
-
   function addEntry(entry) {
     if (entry.plan) {
       setLog(prev => ({ ...prev, [key]: [...(prev[key] || []), ...entry.plan.meals] }));
@@ -913,9 +910,6 @@ function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked })
     if (confirm(`Clear all meals for ${isToday ? 'today' : new Date(viewDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' })}?`)) setLog(prev => ({ ...prev, [key]: [] }));
   }
 
-  const sortedMeals = [...meals].sort((a, b) => a.time?.localeCompare(b.time));
-  const calPct = Math.min(100, goals.cal > 0 ? (totals.cal / goals.cal) * 100 : 0);
-
   // Fixed daily timeline: always render every meal slot. Foods are dragged
   // between slots; the slots themselves are static. Any legacy entry whose time
   // isn't one of the slots is shown too so no logged data is ever hidden.
@@ -927,6 +921,27 @@ function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked })
   const timeline = [...slotEntries, ...legacyEntries].sort((a, b) => String(a.time).localeCompare(String(b.time)));
 
   const dateStr = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  return { viewDate, setViewDate, key, isToday, meals, totals, shiftDay, relLabel, addEntry, removeItem, moveItem, clearDay, timeline, dateStr };
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked }) {
+  const [showModal, setShowModal] = useState(false);
+  const [showGrocery, setShowGrocery] = useState(false);
+  // Foods are the only draggable units. draggedItem = { time, idx }.
+  // Time slots are a fixed, static daily timeline (MEAL_SLOTS).
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverTime, setDragOverTime] = useState(null);
+  const clearDrag = () => { setDraggedItem(null); setDragOverTime(null); };
+  const { viewDate, setViewDate, key, isToday, meals, totals, shiftDay, relLabel, addEntry, removeItem, moveItem, clearDay, timeline, dateStr } = useDayLog(log, setLog);
+  const dateInputRef = useRef(null);
+  function openPicker() {
+    const el = dateInputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === 'function') { try { el.showPicker(); return; } catch (e) {} }
+    el.focus(); el.click();
+  }
 
   const navBtnStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, width: 30, height: 30, cursor: 'pointer', fontSize: 15, color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 };
 
@@ -1063,13 +1078,13 @@ function Dashboard({ log, goals, setLog, foodDB, recipes, stocked, setStocked })
 }
 
 // ─── CalRing ──────────────────────────────────────────────────────────────────
-function CalRing({ value, target }) {
+function CalRing({ value, target, size = 128 }) {
   const r = 52, cx = 64, cy = 64, stroke = 9;
   const circ = 2 * Math.PI * r;
   const pct = Math.min(1, target > 0 ? value / target : 0);
   const over = value > target && target > 0;
   return (
-    <svg width={128} height={128} viewBox="0 0 128 128">
+    <svg width={size} height={size} viewBox="0 0 128 128">
       <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
       <circle cx={cx} cy={cy} r={r} fill="none"
         stroke={over ? 'var(--red)' : 'var(--accent)'}
@@ -1105,6 +1120,11 @@ function History({ log, goals, setLog }) {
   const [rangeWeekdays, setRangeWeekdays] = useState([0,1,2,3,4,5,6]); // 0=Sun
   const [overwriteMode, setOverwriteMode] = useState('add'); // 'add' | 'replace' | 'skip'
   const [applyToast, setApplyToast] = useState('');
+  // On a phone the day's details sit below the calendar: bring them into view.
+  const detailRef = useRef(null);
+  useEffect(() => {
+    if (selected && detailRef.current && window.matchMedia(PHONE_QUERY).matches) detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected]);
 
   const monthName = new Date(year, month).toLocaleString('en-CA', { month: 'long', year: 'numeric' });
   const firstDay = new Date(year, month, 1).getDay();
@@ -1246,7 +1266,7 @@ function History({ log, goals, setLog }) {
 
         {/* Day detail */}
         {selected && (
-          <div style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
+          <div ref={detailRef} style={{ background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: 'var(--shadow)', scrollMarginTop: 70 }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>{new Date(year, month, selected).toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1650,6 +1670,225 @@ function Sidebar({ active, setActive, totals, goals }) {
   );
 }
 
+// ─── Phone layout ─────────────────────────────────────────────────────────────
+// Rendered instead of the sidebar layout on screens ≤ 640 px: a slim top bar,
+// a bottom tab bar, and a touch-first Today screen. The other screens are the
+// shared components; data and actions are the same as on desktop (useDayLog).
+const PHONE_QUERY = '(max-width: 640px)';
+function useIsPhone() {
+  const [m, setM] = useState(() => window.matchMedia(PHONE_QUERY).matches);
+  useEffect(() => {
+    const q = window.matchMedia(PHONE_QUERY), f = () => setM(q.matches);
+    q.addEventListener('change', f); return () => q.removeEventListener('change', f);
+  }, []);
+  return m;
+}
+
+function PhoneIcon({ name }) {
+  const p = { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (name === 'today') return <svg {...p}><circle cx="12" cy="12" r="8" strokeOpacity="0.35" /><path d="M12 4a8 8 0 0 1 7.4 11" /></svg>;
+  if (name === 'foods') return <svg {...p}><path d="M8 6h12M8 12h12M8 18h12" /><circle cx="4" cy="6" r="1" fill="currentColor" /><circle cx="4" cy="12" r="1" fill="currentColor" /><circle cx="4" cy="18" r="1" fill="currentColor" /></svg>;
+  if (name === 'history') return <svg {...p}><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8.5 3v4M15.5 3v4" /></svg>;
+  if (name === 'goals') return <svg {...p}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.8" fill="currentColor" /></svg>;
+  return <svg {...p}><path d="M6 8h11l-3-3M18 16H7l3 3" /></svg>;
+}
+
+const PHONE_TABS = [
+  { id: 'dashboard', label: 'Today', icon: 'today' },
+  { id: 'food', label: 'Foods', icon: 'foods' },
+  { id: 'history', label: 'History', icon: 'history' },
+  { id: 'goals', label: 'Goals', icon: 'goals' },
+  { id: 'sync', label: 'Sync', icon: 'sync' },
+];
+const SYNC_SHORT = { off: 'Not synced', pending: 'Syncing…', saving: 'Saving…', ok: 'Saved', error: 'Not saved', conflict: 'Choose copy', newer: 'Update ready' };
+
+function PhoneShell({ active, setActive, children }) {
+  const s = useCloudSync();
+  const status = CloudSync.info() ? s.status : 'off';
+  function go(id) { setActive(id); window.scrollTo(0, 0); }
+  return (
+    <div className="phone-shell">
+      <StorageBanner />
+      <header className="phone-top">
+        <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 15, letterSpacing: -0.3 }}>MACRO<span style={{ color: 'var(--accent)' }}>LOG</span></div>
+        <button className="tap-sm" onClick={() => go('sync')} title="GitHub sync"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 999, padding: '5px 11px', fontSize: 12, color: 'var(--text2)' }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: SYNC_DOTS[status] || 'var(--amber)' }} />
+          {SYNC_SHORT[status]}
+        </button>
+      </header>
+      <main className="phone-main">{children}</main>
+      <nav className="phone-tabs">
+        {PHONE_TABS.map(t => (
+          <button key={t.id} className={active === t.id ? 'on' : ''} onClick={() => go(t.id)} aria-label={t.label} aria-current={active === t.id ? 'page' : undefined}>
+            <PhoneIcon name={t.icon} />{t.label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function PhoneToday({ log, setLog, goals, foodDB, recipes, stocked, setStocked }) {
+  const day = useDayLog(log, setLog);
+  const { viewDate, setViewDate, isToday, meals, totals, timeline } = day;
+  const [addSlot, setAddSlot] = useState(null);     // slot the Add sheet opens on
+  const [picked, setPicked] = useState(null);       // { time, idx } of the tapped food
+  const [showGrocery, setShowGrocery] = useState(false);
+  const processed = processedSugarTotal(meals, foodDB);
+  const remaining = goals.cal - totals.cal;
+  const shortDate = new Date(viewDate + 'T00:00:00').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric' });
+  const pickedMeal = picked && meals.find(m => m.time === picked.time);
+  const pickedItem = pickedMeal && pickedMeal.items[picked.idx];
+  const pm = pickedItem ? (pickedItem.qty_mult !== undefined ? pickedItem.qty_mult : 1) : 1;
+  const navBtn = { width: 44, height: 44, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 22, color: 'var(--text2)', flexShrink: 0 };
+  const dot = k => <StatusDot status={macroStatus(k, totals[k], { processedSugar: processed })} />;
+  const bars = [{ k: 'p', l: 'Protein', c: 'var(--accent)' }, { k: 'c', l: 'Carbs', c: '#b85c00' }, { k: 'fat', l: 'Fat', c: '#6b6b63' }];
+  const itemCount = meals.reduce((a, m) => a + m.items.length, 0);
+
+  return (
+    <div style={{ padding: '12px 14px 0' }}>
+      {/* Date */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button className="tap-sm" style={navBtn} onClick={() => day.shiftDay(-1)} aria-label="Previous day">‹</button>
+        <label style={{ flex: 1, position: 'relative', textAlign: 'center', padding: '2px 0' }}>
+          <div style={{ fontSize: 11, fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: 1, color: isToday ? 'var(--text3)' : 'var(--accent)' }}>{day.relLabel(viewDate)}</div>
+          <div style={{ fontSize: 18, fontWeight: 600, marginTop: 1 }}>{shortDate} <span style={{ fontSize: 12, color: 'var(--text3)' }}>▾</span></div>
+          <input type="date" value={viewDate} aria-label="Pick a date" onChange={e => { if (e.target.value) setViewDate(e.target.value); }}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none' }} />
+        </label>
+        <button className="tap-sm" style={navBtn} onClick={() => day.shiftDay(1)} aria-label="Next day">›</button>
+      </div>
+      {!isToday && (
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
+          <button className="p-chip tap-sm" onClick={() => setViewDate(todayKey())} style={{ color: 'var(--accent)', borderColor: 'var(--accent-dim)', background: 'var(--accent-bg)', fontWeight: 600 }}>Back to today</button>
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="p-card" style={{ marginTop: 12, padding: 14, display: 'flex', gap: 14, alignItems: 'center' }}>
+        <div style={{ flexShrink: 0 }}><CalRing value={totals.cal} target={goals.cal} size={108} /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.6 }}>{remaining >= 0 ? 'Left today' : 'Over'}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: 19, fontWeight: 600, color: remaining < 0 ? 'var(--red)' : 'var(--text)' }}>
+              {r1(Math.abs(remaining))}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)' }}> kcal</span>
+            </span>
+          </div>
+          {bars.map(b => (
+            <div key={b.k} style={{ marginTop: 9 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, marginBottom: 4 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)' }}>{dot(b.k)}{b.l}</span>
+                <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{r1(totals[b.k])}<span style={{ fontWeight: 400, color: 'var(--text3)' }}> / {goals[b.k]} g</span></span>
+              </div>
+              <MiniBar value={totals[b.k]} target={goals[b.k]} color={b.c} height={6} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        {[{ k: 'f', l: 'Fiber' }, { k: 's', l: 'Sugar' }].map(x => (
+          <div key={x.k} className="p-card" style={{ flex: 1, padding: '9px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, boxShadow: 'none' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text2)' }}>{dot(x.k)}{x.l}</span>
+            <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{r1(totals[x.k])}<span style={{ fontWeight: 400, color: 'var(--text3)' }}> / {goals[x.k]} g</span></span>
+          </div>
+        ))}
+      </div>
+
+      {/* Day actions */}
+      {itemCount > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+          <button className="p-chip tap-sm" onClick={() => setShowGrocery(true)}>🛒 Grocery list</button>
+          <span style={{ flex: 1 }} />
+          <button className="p-chip tap-sm" onClick={day.clearDay} style={{ color: 'var(--text2)' }}>Clear day</button>
+        </div>
+      )}
+
+      {/* Meals by time slot */}
+      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {timeline.map(entry => {
+          const meal = entry.meal;
+          if (!meal) return (
+            <button key={entry.time} className="p-row tap-sm" onClick={() => setAddSlot(entry.time)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: '1px dashed var(--border)', borderRadius: 14, background: 'transparent', textAlign: 'left' }}>
+              <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600, color: 'var(--text3)', width: 52 }}>{entry.label}</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--text3)' }}>Add food</span>
+              <span style={{ fontSize: 20, color: 'var(--accent)', lineHeight: 1 }}>+</span>
+            </button>
+          );
+          const t = sumMeals([meal]);
+          return (
+            <div key={entry.time} className="p-card" style={{ overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 8px 8px 14px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{entry.label}</span>
+                <span style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text2)' }}>{r1(t.cal)} kcal · P {r1(t.p)} g</span>
+                <button className="tap-sm" onClick={() => setAddSlot(entry.time)} aria-label={`Add food at ${entry.label}`}
+                  style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: 22, lineHeight: 1 }}>+</button>
+              </div>
+              {meal.items.map((item, ii) => {
+                const mult = item.qty_mult !== undefined ? item.qty_mult : 1;
+                return (
+                  <button key={ii} className="p-row tap-sm" onClick={() => setPicked({ time: entry.time, idx: ii })}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 14px', background: 'none', border: 'none', borderTop: ii ? '1px solid var(--border)' : 'none', textAlign: 'left', color: 'var(--text)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, lineHeight: 1.3 }}>{item.name}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text3)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+                        {item.qty || item.portion}{item._batchServings ? ` · 1/${item._batchServings}` : ''} · P {r1(item.p * mult)} · C {r1(item.c * mult)} · F {r1(item.fat * mult)}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: 'var(--mono)', fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap' }}>{r1(item.cal * mult)}<span style={{ fontWeight: 400, fontSize: 10.5, color: 'var(--text3)' }}> kcal</span></div>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--text3)', margin: '14px 0 4px' }}>Tap a food to move it to another time or remove it.</div>
+
+      <button className="fab tap-sm" aria-label="Add food" onClick={() => setAddSlot(nearestSlot())}>+</button>
+
+      {/* Tapped food: move or remove */}
+      {pickedItem && (
+        <div className="modal-wrap" onClick={e => e.target === e.currentTarget && setPicked(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1200, display: 'flex', alignItems: 'flex-end' }}>
+          <div className="modal-box" role="dialog" aria-label="Food actions" style={{ background: 'var(--surface)', padding: '10px 16px 16px', width: '100%' }}>
+            <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)', margin: '0 auto 12px' }} />
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{pickedItem.name}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text2)', fontFamily: 'var(--mono)', marginTop: 3 }}>
+              {pickedItem.qty || pickedItem.portion} · {r1(pickedItem.cal * pm)} kcal · now at {formatSlot(picked.time)}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.6, margin: '16px 0 8px' }}>Move to</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {MEAL_SLOTS.map(sl => {
+                const here = sl.value === picked.time;
+                return (
+                  <button key={sl.value} disabled={here} onClick={() => { day.moveItem(picked.time, picked.idx, sl.value); setPicked(null); }}
+                    style={{ height: 44, borderRadius: 10, fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 600,
+                      border: `1px solid ${here ? 'var(--accent)' : 'var(--border)'}`, background: here ? 'var(--accent-bg)' : 'var(--bg)', color: here ? 'var(--accent)' : 'var(--text)' }}>
+                    {sl.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => { day.removeItem(meals.indexOf(pickedMeal), picked.idx); setPicked(null); }}
+              style={{ width: '100%', height: 48, marginTop: 16, borderRadius: 12, border: '1px solid var(--red)', background: 'var(--red-bg)', color: 'var(--red)', fontSize: 15, fontWeight: 600 }}>
+              Remove from log
+            </button>
+            <button onClick={() => setPicked(null)}
+              style={{ width: '100%', height: 48, marginTop: 8, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', fontSize: 15 }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {addSlot && <AddMealModal initialSlot={addSlot} onAdd={day.addEntry} onClose={() => setAddSlot(null)} foodDB={foodDB} recipes={recipes} />}
+      {showGrocery && window.GroceryList && <window.GroceryList meals={meals} foodDB={foodDB} stocked={stocked} setStocked={setStocked} dateKey={day.key} onClose={() => setShowGrocery(false)} />}
+    </div>
+  );
+}
+
 // ─── App Root ─────────────────────────────────────────────────────────────────
 function App() {
   const [active, setActive] = useState('dashboard');
@@ -1681,6 +1920,17 @@ function App() {
 
   const todayMeals = log[todayKey()] || [];
   const totals = sumMeals(todayMeals);
+  const phone = useIsPhone();
+
+  if (phone) return (
+    <PhoneShell active={active} setActive={setActive}>
+      {active === 'dashboard' && <PhoneToday log={log} setLog={setLog} goals={goals} foodDB={foodDB} recipes={recipes} stocked={stocked} setStocked={setStocked} />}
+      {active === 'food'      && <FoodDatabase phone foodDB={foodDB} setFoodDB={setFoodDB} recipes={recipes} setRecipes={setRecipes} />}
+      {active === 'history'   && <History log={log} goals={goals} setLog={setLog} />}
+      {active === 'goals'     && <Goals goals={goals} setGoals={setGoals} />}
+      {active === 'sync'      && <SyncScreen />}
+    </PhoneShell>
+  );
 
   return (
     <div className="app-shell" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
