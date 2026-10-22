@@ -2,8 +2,9 @@
 
 Single-page React 18 app with no build step. `index.html` loads React, ReactDOM
 and Babel from unpkg; Babel compiles the JSX in the browser. The other files are
-`data.js` (seed foods, seed recipes, diet plans, helpers), `FoodDatabase.jsx`,
-`GroceryList.jsx` and `tweaks-panel.jsx`. The site is served by GitHub Pages
+`data.js` (seed foods, seed recipes, diet plans, helpers), `sync.js` (GitHub
+sync engine, plain JS), `FoodDatabase.jsx`, `GroceryList.jsx` and
+`tweaks-panel.jsx`. The site is served by GitHub Pages
 from the repository root on `main`. Keep this single-file setup unless the owner
 asks otherwise.
 
@@ -31,8 +32,9 @@ change:
    `{ savedAt, data: { key: rawString } }`. If the backup fails, nothing runs.
    Do not remove or bypass this step.
 
-Code that writes to `localStorage` outside a user action is a bug. Exception:
-the load sequence in `index.html` (`protectAndUpgradeData`).
+Code that writes to `localStorage` outside a user action is a bug. Exceptions:
+the load sequence in `index.html` (`protectAndUpgradeData`) and loading the
+GitHub copy in `sync.js` (`applyRemote`, which backs up first).
 
 5. **Never overwrite data that failed to read.** App code reads and writes
    storage only through `StorageGuard.read(key, def)` and
@@ -41,6 +43,17 @@ the load sequence in `index.html` (`protectAndUpgradeData`).
    paused until a reload reads it correctly. A failed save is reported, never
    thrown or swallowed. Both show `StorageBanner`. Don't call
    `localStorage.setItem` directly from app code.
+
+6. **GitHub sync never overwrites without asking.** `sync.js` saves all synced
+   keys (every `macro*` key except `macrobackup_v1`, plus `migration_*` flags)
+   to `macro-data.json` in the owner's **private** data repo (default
+   `JavaIT-Teach/calorie-tracker-data`). It refuses public repos. If this device
+   and GitHub both changed, the user chooses which copy to keep. Taking the
+   GitHub copy backs this device up to `macrobackup_v1` first. Nothing is sent
+   while any synced key is unreadable. The key (fine-grained token, Contents
+   read/write on the data repo only) lives in `ct-sync-v1` on the device only:
+   never put it in a `macro*` key, a backup, the synced file, or the code.
+   New data keys must start with `macro` so they are backed up and synced.
 
 ## Storage keys
 
@@ -55,7 +68,9 @@ the load sequence in `index.html` (`protectAndUpgradeData`).
 | `macrogrocery_custom_v1` | custom grocery items |
 | `macroseeded_v1` | `{ foods: [ids], recipes: [ids] }` seed IDs already offered |
 | `macrobackup_v1` | snapshot taken before the last seed fill or migration run |
-| `migration_*` | migration flags (`'done'`) |
+| `migration_*` | migration flags (`'done'`); synced |
+| `ct-sync-v1` | GitHub sync settings and **key**; this device only, never synced or backed up |
+| `ct-edited-at` | time of the last edit on this device (sync uses it to detect local data) |
 
 Macro fields: `cal`, `p` protein, `c` carbs, `f` fiber, `s` sugar, `fat`.
 

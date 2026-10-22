@@ -42,6 +42,7 @@ window.StorageGuard = (function () {
     try {
       localStorage.setItem(key, JSON.stringify(value));
       if (saveErrors.delete(key)) notify();
+      if (window.CloudSync) CloudSync.changed(key); // queue a save to GitHub (sync.js)
       return true;
     } catch (e) {
       saveErrors.set(key, e && e.message || String(e));
@@ -165,6 +166,7 @@ window.StorageGuard = (function () {
   const pendingSeeds = SEED_STORES.some(s => s.seeds.some(x => !(seeded[s.field] || []).includes(x.id)));
   const pendingMigrations = MIGRATIONS.filter(m => localStorage.getItem(m.id) !== 'done');
   if (!pendingSeeds && pendingMigrations.length === 0) return;
+  window.__ctLoadChanged = true; // tells sync.js this load may add data to send
 
   // Unreadable data: keep the last good backup and change nothing this load.
   for (let i = 0; i < localStorage.length; i++) {
@@ -220,6 +222,7 @@ window.StorageGuard = (function () {
   }
 })();
 </script>
+<script src="sync.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -363,9 +366,14 @@ function StorageBanner() {
     setSt(StorageGuard.status()); // catch anything recorded before subscribing
     return StorageGuard.subscribe(() => setSt(StorageGuard.status()));
   }, []);
+  const sync = useCloudSync();
   const label = keys => keys.map(k => STORAGE_LABELS[k] || k).join(', ');
   const bar = (bg, border, color) => ({ background: bg, borderBottom: `1px solid ${border}`, color, padding: '10px 16px', fontSize: 13, lineHeight: 1.4 });
-  if (!st.unreadable.length && !st.saveErrors.length) return null;
+  const btn = primary => ({ marginLeft: 8, marginTop: 4, padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    border: `1px solid ${primary ? 'var(--accent)' : 'var(--border)'}`, background: primary ? 'var(--accent)' : 'var(--surface)', color: primary ? '#fff' : 'var(--text)' });
+  const cf = sync.conflict;
+  const when = iso => iso ? new Date(iso).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'earlier';
+  if (!st.unreadable.length && !st.saveErrors.length && !cf && !sync.newer) return null;
   return (
     <div role="alert" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 5000, boxShadow: 'var(--shadow)' }}>
       {st.unreadable.length > 0 && (
@@ -380,6 +388,126 @@ function StorageBanner() {
           <span style={{ color: 'var(--text2)' }}> Affected: {label(st.saveErrors)}. Storage may be full; recent edits will be lost on reload.</span>
         </div>
       )}
+      {cf && (
+        <div style={bar('var(--amber-bg)', 'var(--amber)', 'var(--text)')}>
+          <b style={{ color: 'var(--amber)' }}>This device and GitHub both changed. Choose which copy to keep.</b>
+          <div style={{ color: 'var(--text2)', marginTop: 2 }}>
+            GitHub copy: saved {when(cf.remoteSavedAt)} · {cf.remoteDays} logged days. This device: edited {when(cf.localEditedAt)} · {cf.localDays} logged days. The copy you don't keep stays in GitHub's history or this device's backup.
+          </div>
+          <button style={btn(false)} onClick={() => CloudSync.resolve('github')}>Keep GitHub copy</button>
+          <button style={btn(true)} onClick={() => CloudSync.resolve('local')}>Keep this device's copy</button>
+        </div>
+      )}
+      {!cf && sync.newer && (
+        <div style={bar('var(--accent-bg)', 'var(--accent-dim)', 'var(--text)')}>
+          <b style={{ color: 'var(--accent)' }}>Updated on another device.</b>
+          <span style={{ color: 'var(--text2)' }}> Load the newer copy from GitHub (saved {when(sync.newer.file.savedAt)}).</span>
+          <button style={btn(true)} onClick={() => CloudSync.loadNewer()}>Load it</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── GitHub sync (engine in sync.js) ──────────────────────────────────────────
+function useCloudSync() {
+  const [st, setSt] = useState(() => CloudSync.state());
+  useEffect(() => { setSt(CloudSync.state()); return CloudSync.subscribe(setSt); }, []);
+  return st;
+}
+const SYNC_LINES = { off: 'Not saved to GitHub', pending: 'Changes not on GitHub yet', saving: 'Saving to GitHub…', ok: 'Saved to GitHub',
+  error: 'Not saved to GitHub', conflict: 'Choose which copy to keep', newer: 'Newer copy on GitHub' };
+const SYNC_DOTS = { ok: 'var(--accent)', error: 'var(--red)', conflict: 'var(--red)', off: 'var(--text3)' };
+const clockTime = t => new Date(t).toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' });
+
+function SyncStatusLine({ onClick }) {
+  const s = useCloudSync();
+  const on = !!CloudSync.info();
+  const status = on ? s.status : 'off';
+  return (
+    <button onClick={onClick} className="tap-sm" title="GitHub sync"
+      style={{ display: 'flex', alignItems: 'center', gap: 7, width: '100%', background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: 11, color: 'var(--text2)', textAlign: 'left', borderTop: '1px solid var(--border)' }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: SYNC_DOTS[status] || 'var(--amber)' }} />
+      <span>{SYNC_LINES[status]}{status === 'ok' && s.at ? ` ${clockTime(s.at)}` : ''}</span>
+    </button>
+  );
+}
+
+function SyncScreen() {
+  const s = useCloudSync();
+  const conn = CloudSync.info();
+  const [form, setForm] = useState({ owner: 'JavaIT-Teach', repo: 'calorie-tracker-data', token: '' });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [confirmOff, setConfirmOff] = useState(false);
+  const field = k => ({ value: form[k], onChange: e => setForm({ ...form, [k]: e.target.value }) });
+  async function connect() {
+    if (busy) return;
+    setBusy(true); setMsg('');
+    const err = await CloudSync.connect(form.owner, form.repo, form.token);
+    setBusy(false);
+    if (err) setMsg(err); else setForm({ ...form, token: '' });
+  }
+  const card = { background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)', padding: '18px 20px', boxShadow: 'var(--shadow)', marginBottom: 16 };
+  const input = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, outline: 'none', background: 'var(--bg)', marginTop: 4 };
+  const lab = { display: 'block', fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 };
+  const pbtn = { background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
+  const sbtn = { background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 14px', fontSize: 13, cursor: 'pointer' };
+  const step = (n, title, body) => (
+    <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+      <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent-bg)', color: 'var(--accent)', fontWeight: 700, fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{n}</span>
+      <div style={{ fontSize: 13, lineHeight: 1.6 }}><b>{title}</b><div style={{ color: 'var(--text2)' }}>{body}</div></div>
+    </div>
+  );
+  const shownMsg = msg || (conn && s.status === 'error' ? s.msg : '');
+  return (
+    <div className="page" style={{ padding: '28px 32px', maxWidth: 680, margin: '0 auto' }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: 1 }}>Your data</div>
+        <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>GitHub sync</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 6 }}>
+          Every change is also saved to <code>{CloudSync.FILE}</code> in a <b>private</b> repository of yours. GitHub keeps every old version, and any device you connect gets the same data.
+        </div>
+      </div>
+      {shownMsg && <div style={{ ...card, background: 'var(--red-bg)', borderColor: 'var(--red)', color: 'var(--red)', fontSize: 13 }}>{shownMsg}</div>}
+      {conn ? (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: SYNC_DOTS[s.status] || 'var(--amber)' }} />
+            {s.status === 'ok' ? 'Your data is on GitHub' : SYNC_LINES[s.status]}
+          </div>
+          {s.status === 'ok' && s.at ? <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>Last checked or saved at {clockTime(s.at)}</div> : null}
+          <div style={{ fontSize: 13, marginTop: 10 }}>Repository: <a href={`https://github.com/${encodeURIComponent(conn.owner)}/${encodeURIComponent(conn.repo)}/commits`} target="_blank" rel="noopener">{conn.owner}/{conn.repo}</a> (history of every save)</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button style={pbtn} onClick={() => CloudSync.syncNow()}>Sync now</button>
+            {!confirmOff
+              ? <button style={sbtn} onClick={() => setConfirmOff(true)}>Disconnect this device</button>
+              : <button style={{ ...sbtn, borderColor: 'var(--red)', color: 'var(--red)' }} onClick={() => { CloudSync.disconnect(); setConfirmOff(false); }}>Tap again to disconnect</button>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 12 }}>Disconnecting only removes the key from this device. Your data stays here and on GitHub.</div>
+        </div>
+      ) : (
+        <div style={card}>
+          {step(1, 'Make a private repository', <span>On GitHub, <a href="https://github.com/new" target="_blank" rel="noopener">create a new repository</a> called <b>calorie-tracker-data</b>. Choose <b>Private</b>.</span>)}
+          {step(2, 'Make a key for it', <span>
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Open the key page</a> (fine-grained token), then:<br />
+            · Repository access: <b>Only select repositories</b> → <b>calorie-tracker-data</b><br />
+            · Permissions → Repository permissions → <b>Contents: Read and write</b> (nothing else)<br />
+            · Pick an expiry date, tap <b>Generate token</b> and copy it.
+          </span>)}
+          {step(3, 'Paste it here', <span>The key is kept on this device only. It is not in backups or on GitHub. On another device, paste it again.</span>)}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={lab}>Owner<input style={input} {...field('owner')} /></label>
+            <label style={lab}>Repository<input style={input} {...field('repo')} /></label>
+            <label style={{ ...lab, gridColumn: '1 / -1' }}>Key<input style={input} type="password" autoComplete="off" placeholder="github_pat_…" {...field('token')} /></label>
+          </div>
+          <button style={{ ...pbtn, opacity: busy ? 0.6 : 1 }} onClick={connect}>{busy ? 'Connecting…' : 'Connect'}</button>
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6 }}>
+        Changes are sent about 8 seconds after you stop, and when you leave the page. The app checks GitHub when it opens, when you come back to it, and every few minutes.
+        If this device and GitHub both changed, it asks which copy to keep — it never overwrites without asking. No internet: changes stay on this device and are sent when you are back online.
+      </div>
     </div>
   );
 }
@@ -1465,6 +1593,7 @@ function Sidebar({ active, setActive, totals, goals }) {
     { id: 'food',      label: 'Food Database', icon: '⊟' },
     { id: 'history',   label: 'History',       icon: '◫' },
     { id: 'goals',     label: 'Goals',         icon: '◎' },
+    { id: 'sync',      label: 'GitHub sync',   icon: '⇅' },
   ];
 
   return (
@@ -1500,6 +1629,8 @@ function Sidebar({ active, setActive, totals, goals }) {
           </button>
         ))}
       </nav>
+
+      <SyncStatusLine onClick={() => setActive('sync')} />
 
       {/* Quick macro summary */}
       <div className="sidebar-macros" style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
@@ -1541,6 +1672,8 @@ function App() {
     document.documentElement.style.setProperty('--accent', tweaks.accentColor);
   }, [tweaks.accentColor]);
 
+  useEffect(() => { CloudSync.start(); }, []);
+
   const todayMeals = log[todayKey()] || [];
   const totals = sumMeals(todayMeals);
 
@@ -1553,6 +1686,7 @@ function App() {
         {active === 'food'      && <FoodDatabase foodDB={foodDB} setFoodDB={setFoodDB} recipes={recipes} setRecipes={setRecipes} />}
         {active === 'history'   && <History log={log} goals={goals} setLog={setLog} />}
         {active === 'goals'     && <Goals goals={goals} setGoals={setGoals} />}
+        {active === 'sync'      && <SyncScreen />}
       </main>
       <TweaksPanel>
         <TweakSection label="Appearance">
